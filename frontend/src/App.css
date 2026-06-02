@@ -1,0 +1,98 @@
+/* Centralized Blue-Gray Theme and Custom Layout CSS */
+
+:root {
+  --primary-color: #3b82f6;
+  --bg-dark: #1e293b;
+  --bg-darker: #0f172a;
+  --bg-light: #f8fafc;
+  --border-color: #e2e8f0;
+  --text-main: #334155;
+  --text-secondary: #64748b;
+  --max-width: 1200px;
+}
+
+.page-container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 12px 0 30px;
+}
+
+.custom-card {
+  border-radius: 16px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02) !important;
+  border: 1px solid var(--border-color) !important;
+  overflow: hidden;
+}
+
+.stat-card-title {
+  color: var(--text-secondary) !important;
+  font-size: 14px;
+}
+
+.stat-card-value {
+  margin: 8px 0 0 !important;
+  font-weight: 700 !important;
+}
+
+.flex-between-wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.page-loading-center {
+  min-height: 360px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.element-loading-center {
+  min-height: 220px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-scroll-container {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(30, 28px);
+  gap: 6px;
+  min-width: 1014px;
+}
+
+.calendar-day-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.calendar-heat-cell {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid #dbeafe;
+}
+
+/* Global Table Text Alignment and Layout Centering */
+.ant-table-wrapper .ant-table-thead > tr > th,
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  text-align: center !important;
+}
+
+/* Reset title link alignment to look neat when centered */
+.ant-table-wrapper .ant-table-tbody > tr > td .ant-btn-link {
+  display: inline-block;
+  text-align: center;
+}
+

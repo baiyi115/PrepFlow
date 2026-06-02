@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT:8008}
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:5MB}
+      max-request-size: ${MAX_REQUEST_SIZE:5MB}
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/ai_interview?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&allowMultiQueries=true&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      password: ${REDIS_PASSWORD}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+file:
+  upload-path: ${UPLOAD_PATH}
