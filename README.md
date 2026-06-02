@@ -1,4 +1,4 @@
-# AI Interview Platform
+# Interview Platform
 
 一个面向 Java 后端面试备考的在线刷题与能力评估平台。项目功能包含题库练习、即时判分、答题历史、错题复盘、能力分析、个人主页和后台题库管理。
 
