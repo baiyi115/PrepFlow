@@ -1,5 +1,7 @@
 package com.ai.interview.service;
 
+import cn.dev33.satoken.secure.BCrypt;
+import cn.dev33.satoken.stp.SaTokenInfo;
 import cn.dev33.satoken.stp.StpUtil;
 import com.ai.interview.common.ErrorCode;
 import com.ai.interview.constant.BusinessConstant;
@@ -18,8 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -31,14 +31,6 @@ public class UserService {
 
 	@Value("${file.upload-path}")
 	private String uploadPath;
-
-	private File getAvatarDir() {
-		File baseDir = new File(uploadPath).getAbsoluteFile();
-		if (!"uploads".equalsIgnoreCase(baseDir.getName())) {
-			return new File(baseDir, "uploads").getAbsoluteFile();
-		}
-		return baseDir;
-	}
 
 	public LoginVO login(LoginRequest request) {
 		if (request == null) {
@@ -66,12 +58,12 @@ public class UserService {
 			throw new BusinessException(ErrorCode.FORBIDDEN_ERROR, "用户已被禁用");
 		}
 
-		if (!user.getPasswordHash().equals(password)) {
+		if (!BCrypt.checkpw(password, user.getPasswordHash())) {
 			throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户名或密码错误");
 		}
 
 		StpUtil.login(user.getId());
-		cn.dev33.satoken.stp.SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
+		SaTokenInfo tokenInfo = StpUtil.getTokenInfo();
 
 		user.setLastLoginTime(LocalDateTime.now());
 		userMapper.updateById(user);
@@ -141,7 +133,9 @@ public class UserService {
 
 		User newUser = new User();
 		newUser.setUsername(request.getUsername().trim());
-		newUser.setPasswordHash(request.getPassword().trim());
+		String password = request.getPassword();
+		String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+		newUser.setPasswordHash(hashedPassword);
 		newUser.setNickname(request.getNickname().trim());
 		newUser.setStatus(BusinessConstant.USER_STATUS_NORMAL);
 
@@ -177,30 +171,28 @@ public class UserService {
 			throw new BusinessException(ErrorCode.PARAMS_ERROR, "非法的文件名称");
 		}
 		String suffix = originalFilename.substring(originalFilename.lastIndexOf("."));
-
+		
 		if (!suffix.matches("(?i)\\.(jpg|jpeg|png|gif)")) {
 			throw new BusinessException(ErrorCode.PARAMS_ERROR, "图片格式不支持");
 		}
 
 		String newFileName = UUID.randomUUID().toString() + suffix;
-		File destDir = getAvatarDir();
-		if (!destDir.exists() && !destDir.mkdirs()) {
-			throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传目录创建失败");
+		File destDir = new File(uploadPath);
+		if (!destDir.exists()) {
+			destDir.mkdirs();
 		}
-		String avatarUrl = "/uploads/" + newFileName;
-		File destFile = new File(destDir, newFileName).getAbsoluteFile();
 		try {
-			Files.copy(file.getInputStream(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			file.transferTo(new File(destDir, newFileName));
 		} catch (Exception e) {
-			throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件上传失败: " + e.getMessage());
+			throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件上传失败");
 		}
-
+		
 		Long userId = StpUtil.getLoginIdAsLong();
 		User user = new User();
 		user.setId(userId);
-		user.setAvatarUrl(avatarUrl);
+		user.setAvatarUrl("/api/uploads/" + newFileName);
 		userMapper.updateById(user);
 
-		return avatarUrl;
+		return "/api/uploads/" + newFileName;
 	}
 }
