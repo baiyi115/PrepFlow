@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Layout, Menu, Button, Space, Card, notification, message, Typography, Spin, Result, ConfigProvider } from 'antd';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import type { UserVO, QuestionVO, QuestionDetailVO, SubmitAnswerVO, UserSubmitVO, GroupedWrongBookVO, CategoryStatVO, WeaknessAnalysisVO, UserProfileVO, CalendarItemVO } from './types';
 import { userApi, questionApi, submitApi } from './api';
 import { getToken, setToken as setLocalToken, removeToken } from './utils/request';
@@ -32,27 +32,20 @@ function App() {
   const [currentUser, setCurrentUser] = useState<UserVO | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null); // 记录登录前阻断的行为闭包
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
-  // 刷题模块状态与题目大厅列表
   const [questionList, setQuestionList] = useState<QuestionVO[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(() => pageStorage.getSelectedCategory()); // 当前选中的 Bank 分类
   const [question, setQuestion] = useState<QuestionDetailVO | null>(null);
   const [selectedOption, setSelectedOption] = useState<string>('');
-  
-  // 答题队列上下文状态（用于特定分类下的连续刷题）
   const [activePracticeQueue, setActivePracticeQueue] = useState<string[]>(() => pageStorage.getPracticeQueue());
 
-  // 幂等 token
   const [submitToken, setSubmitToken] = useState<string>(() => 'token-ts-' + Date.now());
   const [submitResult, setSubmitResult] = useState<SubmitAnswerVO | null>(null);
 
-  // 统计列表数据
   const [historyData, setHistoryData] = useState<UserSubmitVO[]>([]);
   const [activeSubmitId, setActiveSubmitId] = useState<string | null>(null);
   const [activeHistoryQueue, setActiveHistoryQueue] = useState<string[]>([]);
   const [wrongData, setWrongData] = useState<GroupedWrongBookVO[]>([]);
-  const [targetWrongCategory, setTargetWrongCategory] = useState<string | null>(null);
   const [statData, setStatData] = useState<CategoryStatVO[]>([]);
   const [analysisData, setAnalysisData] = useState<WeaknessAnalysisVO[]>([]);
   const [profileData, setProfileData] = useState<UserProfileVO | null>(null);
@@ -60,7 +53,7 @@ function App() {
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string>('');
 
-  const getPrevAndNextId = () => {
+  const getPrevAndNextId = (categoryFromUrl?: string) => {
     if (activePracticeQueue.length > 0 && question) {
       const qIdx = activePracticeQueue.indexOf(question.id);
       if (qIdx !== -1) {
@@ -70,9 +63,8 @@ function App() {
         };
       }
     }
-    // 退回到同分类列表下的默认顺序
-    if (selectedCategory && question) {
-      const categoryQuestions = questionList.filter(q => (q.category || '其它未分类') === selectedCategory);
+    if (categoryFromUrl && question) {
+      const categoryQuestions = questionList.filter(q => (q.category || '其它未分类') === categoryFromUrl);
       const currentIdx = categoryQuestions.findIndex(q => q.id === question.id);
       return {
         prevId: currentIdx > 0 ? categoryQuestions[currentIdx - 1].id : null,
@@ -86,7 +78,6 @@ function App() {
     };
   };
 
-  const { prevId: prevQuestionId, nextId: nextQuestionId } = getPrevAndNextId();
   const activeHistoryRecord = activeSubmitId ? historyData.find(item => item.submitId === activeSubmitId) || null : null;
   const activeHistoryIndex = activeSubmitId ? activeHistoryQueue.indexOf(activeSubmitId) : -1;
   const prevSubmitId = activeHistoryIndex > 0 ? activeHistoryQueue[activeHistoryIndex - 1] : null;
@@ -113,18 +104,12 @@ function App() {
     }
   };
 
-  // 防误触
   const checkUnsavedChanges = (): boolean => {
     if (question && selectedOption && !submitResult) {
       return window.confirm('您当前有未提交的答案，确定要离开吗？');
     }
     return true;
   };
-
-  // 自动缓存题库专区状态与答题队列
-  useEffect(() => {
-    pageStorage.setSelectedCategory(selectedCategory);
-  }, [selectedCategory]);
 
   useEffect(() => {
     pageStorage.setPracticeQueue(activePracticeQueue);
@@ -218,12 +203,10 @@ function App() {
     }
   };
 
-  // 根据 URL 变化加载对应数据
   useEffect(() => {
     const init = async () => {
       const path = location.pathname;
       if (path.startsWith('/practice')) {
-        // 避免重复 loadQuestionList
         if (questionList.length === 0) {
           await loadQuestionList();
         }
@@ -240,7 +223,6 @@ function App() {
     init();
   }, [location.pathname, questionList.length]);
 
-  // 静默校验登录态及不管登没登录都加载题目大厅
   useEffect(() => {
     const init = async () => {
       await loadQuestionList();
@@ -255,16 +237,6 @@ function App() {
             if (path.startsWith('/wrong')) await loadWrongData();
             if (path.startsWith('/assess')) await loadStatAndAnalysisData();
             if (path.startsWith('/profile')) await loadProfileData();
-            // 意外刷新页面时，若当时正在做某道题，恢复现场
-            const savedQId = pageStorage.getActiveQuestionId();
-            if (savedQId) {
-              const resDetail = await questionApi.getDetail(savedQId);
-              if (resDetail.code === 0 && resDetail.data) {
-                setQuestion(resDetail.data);
-                setSelectedOption('');
-                setSubmitResult(null);
-              }
-            }
           } else {
             handleLocalClear();
           }
@@ -276,7 +248,6 @@ function App() {
     init();
   }, []);
 
-  // 全局 401 处理
   useEffect(() => {
     const handleAuthError = () => {
       setAuthMode('login');
@@ -286,7 +257,6 @@ function App() {
     return () => window.removeEventListener('auth:unauthorized', handleAuthError);
   }, []);
 
-  // 全局登录校验包装器，如果未登录则拦截并挂起当前 action 闭包
   const ensureAuth = (action: () => void, warningMsg = '请先登录系统后再继续操作') => {
     if (getToken()) {
       action();
@@ -356,20 +326,6 @@ function App() {
     setProfileData(prev => prev ? { ...prev, userProfile: { ...prev.userProfile, ...patch } } : prev);
   };
 
-  const loadQuestionDetail = async (qId: string, isReadOnly = false) => {
-    if (qId == null) {
-      message.warning('已经到最后一题了');
-      return;
-    }
-    if (!isReadOnly) {
-      ensureAuth(() => {
-        proceedLoadQuestionDetail(qId, isReadOnly);
-      }, '请先登录系统后再开始做题');
-      return;
-    }
-    proceedLoadQuestionDetail(qId, isReadOnly);
-  };
-
   const proceedLoadQuestionDetail = async (qId: string, isReadOnly = false) => {
     if (!checkUnsavedChanges()) return;
     setLoadingKey('question');
@@ -415,7 +371,7 @@ function App() {
       });
       if (res.code === 0 && res.data) {
         setSubmitResult(res.data);
-        setSubmitToken(() => 'token-ts-' + Date.now()); // 刷新幂等 Token
+        setSubmitToken(() => 'token-ts-' + Date.now());
         notification.success({ message: '答案提交成功', description: res.data.isCorrect === 1 ? '回答正确！' : '回答错误，请查阅解析。' });
         
         const currentQueueBackup = [...activePracticeQueue];
@@ -434,7 +390,6 @@ function App() {
 
     const switchTab = () => {
       setQuestion(null); 
-      setSelectedCategory(null);
       setActivePracticeQueue([]);
       setActiveSubmitId(null);
       setActiveHistoryQueue([]);
@@ -449,41 +404,28 @@ function App() {
     }
   };
 
-  const handleQuestionLink = (qId: string, queueIds?: string[]) => {
+  const handleQuestionLink = (qId: string, categoryName?: string) => {
     const isFromHistory = location.pathname.startsWith('/history');
-    
-    if (queueIds && queueIds.length > 0) {
-      setActivePracticeQueue(queueIds);
-    } else if (!isFromHistory) {
-      const isWrongBook = location.pathname.startsWith('/wrong');
-      const categoryToFilter = selectedCategory || (isWrongBook ? 'Java' : '');
-      const listToExtract = isWrongBook ? wrongData.flatMap(item => item.list) : questionList;
-      
-      const filteredIds = listToExtract
-        .filter(q => {
-          const cat = isWrongBook ? q.category : q.category;
-          return cat === categoryToFilter;
-        })
-        .map(q => q.id);
-      
-      if (filteredIds.length > 0 && filteredIds.includes(qId)) {
-        setActivePracticeQueue(filteredIds);
-      } else {
-        setActivePracticeQueue([qId]);
-      }
+    if (!isFromHistory) {
+      ensureAuth(() => {
+        if (categoryName) {
+          navigate(`/practice/${categoryName}/play/${qId}`);
+        } else {
+          navigate(`/practice/play/${qId}`);
+        }
+      }, '请先登录系统后再开始做题');
+    } else {
+      navigate(`/history/play/${qId}`);
     }
-
-    loadQuestionDetail(qId, isFromHistory);
   };
 
-  const handleStartPracticeCategory = (category: string, sortedQuestionIds: string[]) => {
+  const handleStartPracticeCategory = (categoryName: string, sortedQuestionIds: string[]) => {
     if (sortedQuestionIds.length === 0) return;
     setActivePracticeQueue(sortedQuestionIds);
-    navigate('/practice');
-    loadQuestionDetail(sortedQuestionIds[0]);
+    navigate(`/practice/${categoryName}/play/${sortedQuestionIds[0]}`);
     notification.success({
       message: '开始分类练习',
-      description: `已为您开启题库 [${category}] 顺序刷题，共 ${sortedQuestionIds.length} 道题。`
+      description: `已为您开启题库 [${categoryName}] 顺序刷题，共 ${sortedQuestionIds.length} 道题。`
     });
   };
 
@@ -492,7 +434,7 @@ function App() {
     setActiveSubmitId(record.submitId);
     setActiveHistoryQueue(submitIds);
     setActivePracticeQueue([]);
-    loadQuestionDetail(record.questionId, true);
+    navigate(`/history/play/${record.questionId}`);
   };
 
   const handleHistorySubmitNav = (submitId: string) => {
@@ -504,33 +446,9 @@ function App() {
   const handleReviewWrongCategory = async (category: string) => {
     if (!checkUnsavedChanges()) return;
     setQuestion(null);
-    setSelectedCategory(null);
     setActivePracticeQueue([]);
-    setTargetWrongCategory(category);
-    navigate('/wrong');
+    navigate(`/wrong/${category}`);
     await loadWrongData();
-  };
-
-  const handleBackToBankDetail = () => {
-    if (!checkUnsavedChanges()) return;
-    setQuestion(null);
-    pageStorage.setActiveQuestionId(null);
-    if (location.pathname.startsWith('/wrong')) {
-      setActivePracticeQueue([]);
-      pageStorage.setPracticeQueue([]);
-    }
-    setActiveSubmitId(null);
-    setActiveHistoryQueue([]);
-  };
-
-  const handleBackToBanksList = () => {
-    if (!checkUnsavedChanges()) return;
-    setQuestion(null);
-    setSelectedCategory(null);
-    setActivePracticeQueue([]);
-    setActiveSubmitId(null);
-    setActiveHistoryQueue([]);
-    pageStorage.clearPracticeState();
   };
 
   const retryCurrentPage = () => {
@@ -571,7 +489,6 @@ function App() {
     return children;
   };
 
-  // 获取当前侧边栏高亮的 Menu 菜单 Key
   const getSelectedMenuKey = () => {
     const path = location.pathname;
     if (path.startsWith('/practice')) return 'practice';
@@ -620,23 +537,9 @@ function App() {
         <Layout>
           <Header style={{ background: '#fff', padding: '0 30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #d0d7de' }}>
             <Title level={4} style={{ margin: 0 }}>
-              {location.pathname.startsWith('/practice') && (
-                question 
-                  ? '正在练习：' + question.title 
-                  : selectedCategory 
-                    ? '题库详情：' + selectedCategory 
-                    : '题库大厅'
-              )}
-              {location.pathname.startsWith('/history') && (
-                question 
-                  ? '回顾历史题目：' + question.title 
-                  : '答题历史'
-              )}
-              {location.pathname.startsWith('/wrong') && (
-                question 
-                  ? '正在复盘错题：' + question.title 
-                  : '错题本复盘'
-              )}
+              {location.pathname.startsWith('/practice') && '题库专区'}
+              {location.pathname.startsWith('/history') && '答题历史'}
+              {location.pathname.startsWith('/wrong') && '错题本复盘'}
               {location.pathname.startsWith('/assess') && '能力评估分析'}
               {location.pathname.startsWith('/profile') && '个人主页'}
               {location.pathname.startsWith('/admin-users') && '系统管理：用户清单与封禁'}
@@ -668,90 +571,93 @@ function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/practice" replace />} />
               
+              {/* 题库专区细分路由 */}
               <Route path="/practice" element={renderPageState(
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                  {!selectedCategory && !question ? (
-                    <QuestionBankList 
-                      questionList={questionList}
-                      onSelectCategory={(category) => setSelectedCategory(category)}
-                    />
-                  ) : selectedCategory && !question ? (
-                    <QuestionBankDetail
-                      category={selectedCategory}
-                      questionList={questionList}
-                      onGoToDetail={handleQuestionLink}
-                      onStartPracticeCategory={handleStartPracticeCategory}
-                      onBack={handleBackToBanksList}
-                    />
-                  ) : loadingKey === 'question' ? (
-                    <div className="page-loading-center">
-                      <Spin description="正在加载题目..." />
-                    </div>
-                  ) : (
-                    <QuestionPlay
-                      key={question!.id}
-                      question={question!}
-                      selectedOption={selectedOption}
-                      onSelectOption={setSelectedOption}
-                      submitResult={submitResult}
-                      onSubmit={submitAnswer}
-                      onBack={handleBackToBankDetail}
-                      backText="返回题库列表"
-                      prevQuestionId={prevQuestionId}
-                      nextQuestionId={nextQuestionId}
-                      onGoToDetail={handleQuestionLink}
-                    />
-                  )}
+                  <QuestionBankList 
+                    questionList={questionList}
+                    onSelectCategory={(category) => navigate(`/practice/${category}`)}
+                  />
                 </Space>
               )} />
-
-              <Route path="/history" element={renderPageState(
-                !question ? (
-                  <HistoryList data={historyData} questionList={questionList} onReview={handleHistoryReview} />
-                ) : loadingKey === 'question' ? (
-                  <div className="page-loading-center">
-                    <Spin description="正在加载回顾..." />
-                  </div>
-                ) : (
-                  <QuestionReview
-                    key={`${question!.id}-${activeSubmitId || 'unknown'}`}
-                    question={question!}
-                    record={activeHistoryRecord}
-                    onBack={handleBackToBankDetail}
-                    prevSubmitId={prevSubmitId}
-                    nextSubmitId={nextSubmitId}
-                    onGoToSubmit={handleHistorySubmitNav}
-                  />
-                )
+              <Route path="/practice/:category" element={renderPageState(
+                <CategoryDetailWrapper
+                  questionList={questionList}
+                  onGoToDetail={handleQuestionLink}
+                  onStartPracticeCategory={handleStartPracticeCategory}
+                />
+              )} />
+              <Route path="/practice/:category/play/:questionId" element={renderPageState(
+                <CategoryPlayWrapper
+                  loadingKey={loadingKey}
+                  question={question}
+                  selectedOption={selectedOption}
+                  onSelectOption={setSelectedOption}
+                  submitResult={submitResult}
+                  onSubmit={submitAnswer}
+                  getPrevAndNextId={getPrevAndNextId}
+                  handleQuestionLink={handleQuestionLink}
+                  proceedLoadQuestionDetail={proceedLoadQuestionDetail}
+                  checkUnsavedChanges={checkUnsavedChanges}
+                />
+              )} />
+              <Route path="/practice/play/:questionId" element={renderPageState(
+                <CategoryPlayWrapper
+                  loadingKey={loadingKey}
+                  question={question}
+                  selectedOption={selectedOption}
+                  onSelectOption={setSelectedOption}
+                  submitResult={submitResult}
+                  onSubmit={submitAnswer}
+                  getPrevAndNextId={getPrevAndNextId}
+                  handleQuestionLink={handleQuestionLink}
+                  proceedLoadQuestionDetail={proceedLoadQuestionDetail}
+                  checkUnsavedChanges={checkUnsavedChanges}
+                />
               )} />
 
+              {/* 答题历史细分路由 */}
+              <Route path="/history" element={renderPageState(
+                <HistoryList data={historyData} questionList={questionList} onReview={handleHistoryReview} />
+              )} />
+              <Route path="/history/play/:questionId" element={renderPageState(
+                <HistoryPlayWrapper
+                  loadingKey={loadingKey}
+                  question={question}
+                  activeHistoryRecord={activeHistoryRecord}
+                  prevSubmitId={prevSubmitId}
+                  nextSubmitId={nextSubmitId}
+                  handleHistorySubmitNav={handleHistorySubmitNav}
+                  proceedLoadQuestionDetail={proceedLoadQuestionDetail}
+                  checkUnsavedChanges={checkUnsavedChanges}
+                />
+              )} />
+
+              {/* 错题本细分路由 */}
               <Route path="/wrong" element={renderPageState(
-                !question ? (
-                  <WrongBook
-                    key={targetWrongCategory || 'wrong-book'}
-                    data={wrongData}
-                    initialCategory={targetWrongCategory}
-                    onGoToDetail={handleQuestionLink}
-                  />
-                ) : loadingKey === 'question' ? (
-                  <div className="page-loading-center">
-                    <Spin description="正在加载题目..." />
-                  </div>
-                ) : (
-                  <QuestionPlay
-                    key={question!.id}
-                    question={question!}
-                    selectedOption={selectedOption}
-                    onSelectOption={setSelectedOption}
-                    submitResult={submitResult}
-                    onSubmit={submitAnswer}
-                    onBack={handleBackToBankDetail}
-                    backText="返回错题列表"
-                    prevQuestionId={prevQuestionId}
-                    nextQuestionId={nextQuestionId}
-                    onGoToDetail={handleQuestionLink}
-                  />
-                )
+                <WrongBookWrapper
+                  wrongData={wrongData}
+                  setActivePracticeQueue={setActivePracticeQueue}
+                />
+              )} />
+              <Route path="/wrong/:category" element={renderPageState(
+                <WrongBookWrapper
+                  wrongData={wrongData}
+                  setActivePracticeQueue={setActivePracticeQueue}
+                />
+              )} />
+              <Route path="/wrong/play/:questionId" element={renderPageState(
+                <WrongPlayWrapper
+                  loadingKey={loadingKey}
+                  question={question}
+                  selectedOption={selectedOption}
+                  onSelectOption={setSelectedOption}
+                  submitResult={submitResult}
+                  onSubmit={submitAnswer}
+                  getPrevAndNextId={getPrevAndNextId}
+                  proceedLoadQuestionDetail={proceedLoadQuestionDetail}
+                  checkUnsavedChanges={checkUnsavedChanges}
+                />
               )} />
 
               <Route path="/assess" element={renderPageState(
@@ -796,6 +702,267 @@ function App() {
         />
       </Layout>
     </ConfigProvider>
+  );
+}
+
+// 静态化的子组件（声明在 App 外部以避免 render 重构警告）
+
+interface CategoryDetailWrapperProps {
+  questionList: QuestionVO[];
+  onGoToDetail: (qId: string, categoryName?: string) => void;
+  onStartPracticeCategory: (categoryName: string, sortedQuestionIds: string[]) => void;
+}
+
+function CategoryDetailWrapper({ questionList, onGoToDetail, onStartPracticeCategory }: CategoryDetailWrapperProps) {
+  const { category } = useParams<{ category: string }>();
+  const navigate = useNavigate();
+  const categoryName = category || '';
+
+  const handleBack = () => {
+    navigate('/practice');
+  };
+
+  return (
+    <QuestionBankDetail
+      category={categoryName}
+      questionList={questionList}
+      onGoToDetail={(qId) => onGoToDetail(qId, categoryName)}
+      onStartPracticeCategory={onStartPracticeCategory}
+      onBack={handleBack}
+    />
+  );
+}
+
+interface CategoryPlayWrapperProps {
+  loadingKey: string | null;
+  question: QuestionDetailVO | null;
+  selectedOption: string;
+  onSelectOption: (opt: string) => void;
+  submitResult: SubmitAnswerVO | null;
+  onSubmit: () => void;
+  getPrevAndNextId: (categoryFromUrl?: string) => { prevId: string | null; nextId: string | null };
+  handleQuestionLink: (qId: string, categoryName?: string) => void;
+  proceedLoadQuestionDetail: (qId: string, isReadOnly?: boolean) => Promise<void>;
+  checkUnsavedChanges: () => boolean;
+}
+
+function CategoryPlayWrapper({
+  loadingKey,
+  question,
+  selectedOption,
+  onSelectOption,
+  submitResult,
+  onSubmit,
+  getPrevAndNextId,
+  handleQuestionLink,
+  proceedLoadQuestionDetail,
+  checkUnsavedChanges
+}: CategoryPlayWrapperProps) {
+  const { category, questionId } = useParams<{ category?: string; questionId: string }>();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (questionId) {
+      proceedLoadQuestionDetail(questionId, false);
+    }
+  }, [questionId, proceedLoadQuestionDetail]);
+
+  const { prevId, nextId } = getPrevAndNextId(category);
+
+  const handleBack = () => {
+    if (!checkUnsavedChanges()) return;
+    pageStorage.setActiveQuestionId(null);
+    if (category) {
+      navigate(`/practice/${category}`);
+    } else {
+      navigate('/practice');
+    }
+  };
+
+  if (loadingKey === 'question') {
+    return (
+      <div className="page-loading-center">
+        <Spin description="正在加载题目..." />
+      </div>
+    );
+  }
+
+  if (!question) return null;
+
+  return (
+    <QuestionPlay
+      key={question.id}
+      question={question}
+      selectedOption={selectedOption}
+      onSelectOption={onSelectOption}
+      submitResult={submitResult}
+      onSubmit={onSubmit}
+      onBack={handleBack}
+      backText={category ? `返回 ${category} 专题` : '返回题库'}
+      prevQuestionId={prevId}
+      nextQuestionId={nextId}
+      onGoToDetail={(qId) => handleQuestionLink(qId, category)}
+    />
+  );
+}
+
+interface HistoryPlayWrapperProps {
+  loadingKey: string | null;
+  question: QuestionDetailVO | null;
+  activeHistoryRecord: UserSubmitVO | null;
+  prevSubmitId: string | null;
+  nextSubmitId: string | null;
+  handleHistorySubmitNav: (submitId: string) => void;
+  proceedLoadQuestionDetail: (qId: string, isReadOnly?: boolean) => Promise<void>;
+  checkUnsavedChanges: () => boolean;
+}
+
+function HistoryPlayWrapper({
+  loadingKey,
+  question,
+  activeHistoryRecord,
+  prevSubmitId,
+  nextSubmitId,
+  handleHistorySubmitNav,
+  proceedLoadQuestionDetail,
+  checkUnsavedChanges
+}: HistoryPlayWrapperProps) {
+  const { questionId } = useParams<{ questionId: string }>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (questionId) {
+      proceedLoadQuestionDetail(questionId, true);
+    }
+  }, [questionId, proceedLoadQuestionDetail]);
+
+  const handleBack = () => {
+    if (!checkUnsavedChanges()) return;
+    navigate('/history');
+  };
+
+  if (loadingKey === 'question') {
+    return (
+      <div className="page-loading-center">
+        <Spin description="正在加载回顾..." />
+      </div>
+    );
+  }
+
+  if (!question) return null;
+
+  return (
+    <QuestionReview
+      key={`${question.id}-${activeHistoryRecord?.submitId || 'unknown'}`}
+      question={question}
+      record={activeHistoryRecord}
+      onBack={handleBack}
+      prevSubmitId={prevSubmitId}
+      nextSubmitId={nextSubmitId}
+      onGoToSubmit={handleHistorySubmitNav}
+    />
+  );
+}
+
+interface WrongBookWrapperProps {
+  wrongData: GroupedWrongBookVO[];
+  setActivePracticeQueue: (queue: string[]) => void;
+}
+
+function WrongBookWrapper({ wrongData, setActivePracticeQueue }: WrongBookWrapperProps) {
+  const { category } = useParams<{ category?: string }>();
+  const navigate = useNavigate();
+  
+  const handleGoToDetail = (qId: string, queueIds?: string[]) => {
+    if (queueIds && queueIds.length > 0) {
+      setActivePracticeQueue(queueIds);
+    }
+    navigate(`/wrong/play/${qId}${category ? `?from=${category}` : ''}`);
+  };
+
+  return (
+    <WrongBook
+      key={category || 'wrong-book'}
+      data={wrongData}
+      initialCategory={category || null}
+      onGoToDetail={handleGoToDetail}
+    />
+  );
+}
+
+interface WrongPlayWrapperProps {
+  loadingKey: string | null;
+  question: QuestionDetailVO | null;
+  selectedOption: string;
+  onSelectOption: (opt: string) => void;
+  submitResult: SubmitAnswerVO | null;
+  onSubmit: () => void;
+  getPrevAndNextId: (categoryFromUrl?: string) => { prevId: string | null; nextId: string | null };
+  proceedLoadQuestionDetail: (qId: string, isReadOnly?: boolean) => Promise<void>;
+  checkUnsavedChanges: () => boolean;
+}
+
+function WrongPlayWrapper({
+  loadingKey,
+  question,
+  selectedOption,
+  onSelectOption,
+  submitResult,
+  onSubmit,
+  getPrevAndNextId,
+  proceedLoadQuestionDetail,
+  checkUnsavedChanges
+}: WrongPlayWrapperProps) {
+  const { questionId } = useParams<{ questionId: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const fromCategory = query.get('from');
+
+  useEffect(() => {
+    if (questionId) {
+      proceedLoadQuestionDetail(questionId, false);
+    }
+  }, [questionId, proceedLoadQuestionDetail]);
+
+  const { prevId, nextId } = getPrevAndNextId(fromCategory || undefined);
+
+  const handleBack = () => {
+    if (!checkUnsavedChanges()) return;
+    pageStorage.setActiveQuestionId(null);
+    if (fromCategory) {
+      navigate(`/wrong/${fromCategory}`);
+    } else {
+      navigate('/wrong');
+    }
+  };
+
+  if (loadingKey === 'question') {
+    return (
+      <div className="page-loading-center">
+        <Spin description="正在加载题目..." />
+      </div>
+    );
+  }
+
+  if (!question) return null;
+
+  return (
+    <QuestionPlay
+      key={question.id}
+      question={question}
+      selectedOption={selectedOption}
+      onSelectOption={onSelectOption}
+      submitResult={submitResult}
+      onSubmit={onSubmit}
+      onBack={handleBack}
+      backText="返回错题列表"
+      prevQuestionId={prevId}
+      nextQuestionId={nextId}
+      onGoToDetail={(qId) => {
+        navigate(`/wrong/play/${qId}${fromCategory ? `?from=${fromCategory}` : ''}`);
+      }}
+    />
   );
 }
 
