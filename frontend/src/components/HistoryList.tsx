@@ -53,7 +53,6 @@ export const HistoryList: React.FC<Props> = ({ data, questionList, onReview }) =
             pageSizeOptions: ['10', '20', '30', '50'],
             onChange: (_, size) => setPageSize(size)
           }} 
-          scroll={{ y: 480 }}
           size="large"
         />
       </Card>

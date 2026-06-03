@@ -196,7 +196,6 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '30', '50']
           }}
-          scroll={{ y: 480 }}
           locale={{ emptyText: '暂无匹配的错题' }}
         />
       </Space>

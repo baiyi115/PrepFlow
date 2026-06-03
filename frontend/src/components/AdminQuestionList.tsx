@@ -242,7 +242,6 @@ export const AdminQuestionList: React.FC = () => {
               pageSizeOptions: ['10', '20', '30', '50'],
               onChange: (_, size) => setPageSize(size)
             }} 
-            scroll={{ y: 480 }}
             size="large"
           />
         )}
