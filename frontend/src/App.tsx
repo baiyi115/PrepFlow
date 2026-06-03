@@ -655,6 +655,8 @@ function App() {
                   getPrevAndNextId={getPrevAndNextId}
                   proceedLoadQuestionDetail={proceedLoadQuestionDetail}
                   checkUnsavedChanges={checkUnsavedChanges}
+                  wrongData={wrongData}
+                  setActivePracticeQueue={setActivePracticeQueue}
                 />
               )} />
 
@@ -912,6 +914,8 @@ interface WrongPlayWrapperProps {
   getPrevAndNextId: (categoryFromUrl?: string) => { prevId: string | null; nextId: string | null };
   proceedLoadQuestionDetail: (qId: string, isReadOnly?: boolean) => Promise<void>;
   checkUnsavedChanges: () => boolean;
+  wrongData: GroupedWrongBookVO[];
+  setActivePracticeQueue: (queue: string[]) => void;
 }
 
 function WrongPlayWrapper({
@@ -923,7 +927,9 @@ function WrongPlayWrapper({
   onSubmit,
   getPrevAndNextId,
   proceedLoadQuestionDetail,
-  checkUnsavedChanges
+  checkUnsavedChanges,
+  wrongData,
+  setActivePracticeQueue
 }: WrongPlayWrapperProps) {
   const { questionId } = useParams<{ questionId: string }>();
   const navigate = useNavigate();
@@ -936,6 +942,26 @@ function WrongPlayWrapper({
       proceedLoadQuestionDetail(questionId, false);
     }
   }, [questionId, proceedLoadQuestionDetail]);
+
+  useEffect(() => {
+    if (questionId && wrongData.length > 0) {
+      let queueMatch: string[] = [];
+      for (const group of wrongData) {
+        const item = group.list.find(q => q.questionId === questionId);
+        if (item) {
+          const now = Date.now();
+          queueMatch = group.list
+            .filter(q => !q.nextReviewTime || now >= new Date(q.nextReviewTime).getTime())
+            .map(q => q.questionId);
+          break;
+        }
+      }
+      if (queueMatch.length > 0) {
+        setActivePracticeQueue(queueMatch);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionId, wrongData]);
 
   const { prevId, nextId } = getPrevAndNextId(fromCategory || undefined);
 
