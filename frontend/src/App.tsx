@@ -326,7 +326,11 @@ function App() {
   };
 
   const proceedLoadQuestionDetail = async (qId: string, isReadOnly = false) => {
-    if (question && question.id === qId) return; // Prevent redundant requests if already loaded
+    if (question && question.id === qId) {
+      // If we are switching modes (readOnly state on pageStorage), or the current question options/details are not complete, allow loading.
+      // But if it's already completely loaded and matches qId, skip to avoid infinite loop.
+      return;
+    }
     if (!checkUnsavedChanges()) return;
     setLoadingKey('question');
     setPageError('');
@@ -373,7 +377,7 @@ function App() {
         setSubmitResult(res.data);
         setSubmitToken(() => 'token-ts-' + Date.now());
         notification.success({ message: '答案提交成功', description: res.data.isCorrect === 1 ? '回答正确！' : '回答错误，请查阅解析。' });
-        
+
         const currentQueueBackup = [...activePracticeQueue];
         await loadWrongData(true);
         await loadHistoryData(true);
@@ -440,6 +444,12 @@ function App() {
   const handleHistorySubmitNav = (submitId: string) => {
     const record = historyData.find(item => item.submitId === submitId);
     if (!record) return;
+
+    // Check if question details need to be loaded (if navigating to a different question)
+    if (question && question.id !== record.questionId) {
+      setQuestion(null); // Clear first to allow the wrapper's useEffect to reload
+    }
+
     handleHistoryReview(record, activeHistoryQueue.length > 0 ? activeHistoryQueue : historyData.map(item => item.submitId));
   };
 
@@ -495,6 +505,7 @@ function App() {
     if (path.startsWith('/history')) return 'history';
     if (path.startsWith('/wrong')) return 'wrong';
     if (path.startsWith('/assess')) return 'assess';
+    if (path.startsWith('/analysis')) return 'assess';
     if (path.startsWith('/profile')) return 'profile';
     if (path.startsWith('/admin-users')) return 'admin-users';
     if (path.startsWith('/admin-questions')) return 'admin-questions';
@@ -664,6 +675,7 @@ function App() {
               <Route path="/assess" element={renderPageState(
                 <AnalysisDashboard statData={statData} analysisData={analysisData} onReviewWrongCategory={handleReviewWrongCategory} />
               )} />
+              <Route path="/analysis" element={<Navigate to="/assess" replace />} />
 
               <Route path="/profile" element={renderPageState(
                 <ProfilePage
