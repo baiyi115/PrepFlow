@@ -326,6 +326,7 @@ function App() {
   };
 
   const proceedLoadQuestionDetail = async (qId: string, isReadOnly = false) => {
+    if (question && question.id === qId) return; // Prevent redundant requests if already loaded
     if (!checkUnsavedChanges()) return;
     setLoadingKey('question');
     setPageError('');
