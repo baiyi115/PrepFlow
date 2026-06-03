@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, Table, Button, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { QuestionVO, UserSubmitVO } from '../types';
@@ -10,6 +10,7 @@ interface Props {
 }
 
 export const HistoryList: React.FC<Props> = ({ data, questionList, onReview }) => {
+  const [pageSize, setPageSize] = useState(10);
   const submitIds = data.map(item => item.submitId);
   const questionTitleMap = new Map(questionList.map(item => [item.id, item.title]));
 
@@ -46,7 +47,13 @@ export const HistoryList: React.FC<Props> = ({ data, questionList, onReview }) =
           dataSource={data} 
           columns={columns} 
           rowKey="submitId" 
-          pagination={{ pageSize: 12 }} 
+          pagination={{ 
+            pageSize: pageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '30', '50'],
+            onChange: (_, size) => setPageSize(size)
+          }} 
+          scroll={{ y: 480 }}
           size="large"
         />
       </Card>

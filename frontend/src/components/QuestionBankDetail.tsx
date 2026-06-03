@@ -25,6 +25,7 @@ export const QuestionBankDetail: React.FC<Props> = ({
   const [sortState, setSortState] = useState<SortState>(defaultSortState);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // 1. 过滤分类、搜索文本、难度类型
   const filteredList = questionList.filter(q => {
@@ -120,7 +121,13 @@ export const QuestionBankDetail: React.FC<Props> = ({
             dataSource={sortedList} 
             columns={getColumns()} 
             rowKey="id" 
-            pagination={sortedList.length > 10 ? { pageSize: 12 } : false} 
+            pagination={{
+              pageSize: pageSize,
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '30', '50'],
+              onChange: (_, size) => setPageSize(size)
+            }} 
+            scroll={{ y: 480 }}
             size="large"
           />
         )}

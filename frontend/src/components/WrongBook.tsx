@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Card, Table, Button, Typography, Tag, Empty, Row, Col, Input, Segmented, Space } from 'antd';
+import { Table, Tag, Button, Typography, Space, Input, Select, Badge, Card, Result } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { UserWrongBookVO, GroupedWrongBookVO } from '../types';
-import { defaultSortState, difficultyOptions, getNextSortState, renderDifficultyTag, renderSortableHeader, sortByTitleOrDifficulty } from '../utils/tableHelpers';
-import type { SortField, SortState } from '../utils/tableHelpers';
+import type { GroupedWrongBookVO, UserWrongBookVO } from '../types';
+import { renderSortableHeader, renderDifficultyTag, sortByTitleOrDifficulty, defaultSortState, getNextSortState } from '../utils/tableHelpers';
+import type { SortState, SortField } from '../utils/tableHelpers';
 
-const { Title, Text } = Typography;
+const { Title, Paragraph, Text } = Typography;
 
 interface Props {
   data: GroupedWrongBookVO[];
@@ -29,9 +29,13 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
   });
 
   const sortedList = sortByTitleOrDifficulty(filteredList, sortState);
+  
+  // 使用当前时间戳状态，避免在渲染期直接调用 Date.now()，同时保持纯净性
+  const [nowTime] = useState(() => Date.now());
+
   const isReviewDue = (record: UserWrongBookVO) => {
     if (!record.nextReviewTime) return true;
-    return Date.now() >= new Date(record.nextReviewTime).getTime();
+    return nowTime >= new Date(record.nextReviewTime).getTime();
   };
   const currentQueueIds = sortedList.filter(isReviewDue).map(item => item.questionId);
   const toggleSort = (field: SortField) => setSortState(prev => getNextSortState(prev, field));
@@ -60,150 +64,142 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
       key: 'reviewStage',
       width: 120,
       render: (val: number) => {
-        if (val === 4) return <Tag color="success">已掌握</Tag>;
-        return <Tag color="warning">阶段 {val}</Tag>;
+        const text = `阶段 ${val}`;
+        if (val >= 4) return <Tag color="success">{text} (已掌握)</Tag>;
+        if (val === 0) return <Tag color="default">初始错题</Tag>;
+        return <Tag color="processing">{text}</Tag>;
       }
     },
     {
-      title: '下一次推荐温习时间',
-      dataIndex: 'nextReviewTime',
-      key: 'nextReviewTime',
-      render: (val: string) => {
-        const due = !val || Date.now() >= new Date(val).getTime();
+      title: '状态',
+      key: 'status',
+      width: 150,
+      render: (_, record) => {
+        const due = isReviewDue(record);
+        if (due) return <Badge status="error" text="可复习" />;
         return (
-          <Space direction="vertical" size={2}>
-            <span>{val ? val.replace('T', ' ') : '-'}</span>
-            <Tag color={due ? 'success' : 'default'}>{due ? '可温习' : '未到时间'}</Tag>
-          </Space>
+          <Badge 
+            status="default" 
+            text={<span style={{ color: '#8c8c8c' }}>CD中 ({record.nextReviewTime ? new Date(record.nextReviewTime).toLocaleDateString() : ''})</span>} 
+          />
         );
       }
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 120,
-      render: (_, record) => (
-        <Button type="primary" size="small" disabled={!isReviewDue(record)} onClick={() => onGoToDetail(record.questionId, currentQueueIds)}>
-          {isReviewDue(record) ? '开始温习' : '未到时间'}
-        </Button>
-      )
     }
   ];
 
-  if (data.length === 0) {
-    return (
-      <Card title="我的错题本" extra={<Text type="secondary">这里记录了您所有答错过并处于艾宾浩斯复习周期中的题目。</Text>}>
-        <Empty description="暂无错题记录。答错的题目会自动进入错题本复盘。" />
-      </Card>
-    );
-  }
+  const handleSelectCategory = (category: string) => {
+    setSelectedCategory(category);
+    // 重置搜索、难度和排序过滤条件，避免过滤条件残留
+    setSearchQuery('');
+    setDifficultyFilter('all');
+    setSortState(defaultSortState);
+  };
 
   if (!selectedCategory) {
     return (
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '10px 0 30px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
-          <div>
-            <Title level={3} style={{ margin: 0, fontWeight: 700, color: '#262626' }}>错题本复盘</Title>
-            <Text type="secondary">按知识分类整理错题，优先复盘薄弱专区。</Text>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <Card className="custom-card">
+          <div style={{ padding: '8px 12px' }}>
+            <Title level={4} style={{ marginTop: 0, marginBottom: 8 }}>错题本复盘专区</Title>
+            <Paragraph style={{ color: '#64748b', fontSize: 14, marginBottom: 0 }}>
+              按分类归纳您回答错误的题目。这里基于艾宾浩斯记忆遗忘曲线，为您制定了复盘冷却机制：每次重新挑战正确后，错题将晋级到下一阶段并进入对应的冷却状态；
+              如果回答错误，复习阶段将重置回初始错题。只有当冷却时间结束（状态显示为“可复习”）时，才能重新点击挑战！
+            </Paragraph>
           </div>
-        </div>
+        </Card>
+        
+        {data.length === 0 ? (
+          <Card className="custom-card">
+            <Result
+              status="success"
+              title="恭喜，暂无错题需要复盘"
+              subTitle="您的答题正确率为 100%，或尚未提交任何错题！继续保持哦！"
+            />
+          </Card>
+        ) : (
+          <div className="card-grid">
+            {data.map(item => {
+              const total = item.list.length;
+              const activeList = item.list.filter(isReviewDue);
+              const activeCount = activeList.length;
 
-        <Row gutter={[24, 24]}>
-          {data.map(group => (
-            <Col xs={24} sm={12} md={8} lg={6} key={group.category}>
-              <Card
-                hoverable
-                style={{
-                  borderRadius: 12,
-                  border: '1px solid #f0f0f0',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
-                  height: '100%'
-                }}
-                styles={{ body: { padding: 20 } }}
-                onClick={() => {
-                  setSelectedCategory(group.category);
-                  setSearchQuery('');
-                  setDifficultyFilter('all');
-                  setSortState(defaultSortState);
-                }}
-              >
-                <Title level={4} style={{ margin: '0 0 12px 0', fontSize: 18, fontWeight: 700 }}>
-                  {group.category}
-                </Title>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  {group.dueCount > 0 ? `今天到期需温习：${group.dueCount} 道` : '暂无待温习到期错题'}
-                </Text>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 16, borderTop: '1px dashed #f0f0f0' }}>
-                  <Space>
-                    <Tag color="blue" style={{ borderRadius: 4 }}>{group.totalCount} 道错题</Tag>
-                    {group.dueCount > 0 && <Tag color="error" style={{ borderRadius: 4 }}>{group.dueCount} 待温习</Tag>}
-                  </Space>
-                  <Button type="link" style={{ padding: 0 }}>进入复盘</Button>
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+              return (
+                <Card 
+                  key={item.category} 
+                  hoverable 
+                  className="custom-card"
+                  onClick={() => handleSelectCategory(item.category)}
+                  style={{ display: 'flex', flexDirection: 'column' }}
+                >
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: 110 }}>
+                    <div>
+                      <Title level={5} style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{item.category}</span>
+                        <Tag color="error">{total} 题</Tag>
+                      </Title>
+                      <Paragraph style={{ color: '#64748b', fontSize: 13, marginBottom: 0 }}>
+                        待复习的题目：<Text type="danger" strong>{activeCount}</Text> 题 / 共 {total} 题
+                      </Paragraph>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                      <Button type="primary" size="small" disabled={activeCount === 0}>
+                        {activeCount > 0 ? '前往复习' : '冷却中'}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      <Card
-        style={{ borderRadius: 16, marginBottom: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #f0f0f0' }}
-        styles={{ body: { padding: '24px 32px' } }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 24 }}>
-          <div>
-            <Title level={3} style={{ margin: '0 0 8px 0', fontWeight: 700 }}>
-              {selectedCategory} 错题复盘
-            </Title>
-            <Text type="secondary" style={{ fontSize: 14 }}>
-              当前分类共有 {selectedList.length} 道错题，建议按推荐复习时间逐步完成复盘。
-            </Text>
-          </div>
-          <Button size="large" type="default" style={{ borderRadius: 8, height: 44 }} onClick={() => setSelectedCategory(null)}>
-            返回错题分类
-          </Button>
-        </div>
-      </Card>
-
-      <Card style={{ borderRadius: 16, marginBottom: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.02)', border: '1px solid #f0f0f0' }} styles={{ body: { padding: '16px 24px' } }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div>
-            <Text type="secondary" style={{ marginRight: 8 }}>难度筛选：</Text>
-            <Segmented
-              value={difficultyFilter}
-              onChange={(val) => setDifficultyFilter(String(val))}
-              options={difficultyOptions}
+    <Card className="custom-card">
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <Space>
+            <Button onClick={() => setSelectedCategory(null)}>返回分类</Button>
+            <Title level={5} style={{ margin: 0 }}>错题分类：{selectedCategory}</Title>
+          </Space>
+          <Space wrap>
+            <Input.Search 
+              placeholder="搜索错题名称" 
+              allowClear 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ width: 220 }} 
             />
-          </div>
-          <Input.Search
-            placeholder="搜索当前分类错题..."
-            allowClear
-            style={{ width: 280 }}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+            <Select 
+              value={difficultyFilter} 
+              onChange={setDifficultyFilter} 
+              style={{ width: 120 }}
+              options={[
+                { value: 'all', label: '全部难度' },
+                { value: '1', label: '简单' },
+                { value: '2', label: '中等' },
+                { value: '3', label: '困难' }
+              ]}
+            />
+          </Space>
         </div>
-      </Card>
 
-      <Card className="custom-card" styles={{ body: { padding: 0 } }}>
-        {sortedList.length === 0 ? (
-          <div style={{ padding: 32 }}>
-            <Empty description="暂无匹配的错题" />
-          </div>
-        ) : (
-          <Table
-            dataSource={sortedList}
-            columns={columns}
-            rowKey="id"
-            pagination={sortedList.length > 8 ? { pageSize: 12 } : false}
-            size="large"
-          />
-        )}
-      </Card>
-    </div>
+        <Table 
+          columns={columns} 
+          dataSource={sortedList} 
+          rowKey="questionId" 
+          bordered
+          pagination={{ 
+            defaultPageSize: 10,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '30', '50']
+          }}
+          scroll={{ y: 480 }}
+          locale={{ emptyText: '暂无匹配的错题' }}
+        />
+      </Space>
+    </Card>
   );
 };

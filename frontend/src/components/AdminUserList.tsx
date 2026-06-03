@@ -10,6 +10,7 @@ export const AdminUserList: React.FC = () => {
   const [users, setUsers] = useState<UserVO[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pageSize, setPageSize] = useState(10);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -30,7 +31,10 @@ export const AdminUserList: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchUsers();
+    const init = async () => {
+      await fetchUsers();
+    };
+    init();
   }, []);
 
   const handleStatusChange = async (userId: string, checked: boolean) => {
@@ -123,7 +127,13 @@ export const AdminUserList: React.FC = () => {
             dataSource={users} 
             columns={columns} 
             rowKey="userId" 
-            pagination={{ pageSize: 12 }} 
+            pagination={{ 
+              pageSize: pageSize,
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '30', '50'],
+              onChange: (_, size) => setPageSize(size)
+            }} 
+            scroll={{ y: 480 }}
             size="large"
           />
         )}

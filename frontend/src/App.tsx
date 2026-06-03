@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Layout, Menu, Button, Space, Card, notification, message, Typography, Spin, Result, ConfigProvider } from 'antd';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import type { UserVO, QuestionVO, QuestionDetailVO, SubmitAnswerVO, UserSubmitVO, GroupedWrongBookVO, CategoryStatVO, WeaknessAnalysisVO, UserProfileVO, CalendarItemVO } from './types';
 import { userApi, questionApi, submitApi } from './api';
 import { getToken, setToken as setLocalToken, removeToken } from './utils/request';
@@ -25,8 +26,10 @@ const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [currentUser, setCurrentUser] = useState<UserVO | null>(null);
-  const [activeKey, setActiveKey] = useState<string>(() => pageStorage.getActiveKey());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null); // 记录登录前阻断的行为闭包
@@ -40,7 +43,7 @@ function App() {
   // 答题队列上下文状态（用于特定分类下的连续刷题）
   const [activePracticeQueue, setActivePracticeQueue] = useState<string[]>(() => pageStorage.getPracticeQueue());
 
-  // 幂等 token，不直接用 Date.now() 在 useState 中，以保证 Hook 纯净
+  // 幂等 token
   const [submitToken, setSubmitToken] = useState<string>(() => 'token-ts-' + Date.now());
   const [submitResult, setSubmitResult] = useState<SubmitAnswerVO | null>(null);
 
@@ -117,11 +120,6 @@ function App() {
     }
     return true;
   };
-
-  // 自动缓存全局 activeKey 状态
-  useEffect(() => {
-    pageStorage.setActiveKey(activeKey);
-  }, [activeKey]);
 
   // 自动缓存题库专区状态与答题队列
   useEffect(() => {
@@ -220,21 +218,43 @@ function App() {
     }
   };
 
+  // 根据 URL 变化加载对应数据
+  useEffect(() => {
+    const init = async () => {
+      const path = location.pathname;
+      if (path.startsWith('/practice')) {
+        // 避免重复 loadQuestionList
+        if (questionList.length === 0) {
+          await loadQuestionList();
+        }
+      } else if (path.startsWith('/history')) {
+        await loadHistoryData();
+      } else if (path.startsWith('/wrong')) {
+        await loadWrongData();
+      } else if (path.startsWith('/assess')) {
+        await loadStatAndAnalysisData();
+      } else if (path.startsWith('/profile')) {
+        await loadProfileData();
+      }
+    };
+    init();
+  }, [location.pathname, questionList.length]);
+
   // 静默校验登录态及不管登没登录都加载题目大厅
   useEffect(() => {
     const init = async () => {
-      await loadQuestionList(); // 未登录状态也能查看题目大厅和题库列表
+      await loadQuestionList();
 
       if (getToken()) {
         try {
           const res = await userApi.getMe();
           if (res.code === 0) {
             setCurrentUser(res.data);
-            const currentTab = pageStorage.getActiveKey();
-            if (currentTab === 'history') loadHistoryData();
-            if (currentTab === 'wrong') loadWrongData();
-            if (currentTab === 'assess') loadStatAndAnalysisData();
-            if (currentTab === 'profile') loadProfileData();
+            const path = window.location.pathname;
+            if (path.startsWith('/history')) await loadHistoryData();
+            if (path.startsWith('/wrong')) await loadWrongData();
+            if (path.startsWith('/assess')) await loadStatAndAnalysisData();
+            if (path.startsWith('/profile')) await loadProfileData();
             // 意外刷新页面时，若当时正在做某道题，恢复现场
             const savedQId = pageStorage.getActiveQuestionId();
             if (savedQId) {
@@ -292,12 +312,10 @@ function App() {
         setIsLoginModalOpen(false);
         notification.success({ message: '登录成功', description: `欢迎回来，${res.data.nickname}！已为您载入系统。` });
         
-        // 1. 如果有被拦截的行为（如切页或做题），在登录成功后立即解封并执行
         if (pendingAction) {
           pendingAction();
           setPendingAction(null);
         } else {
-          // 否则默认加载当前页签的数据
           loadQuestionList();
           loadProfileData();
         }
@@ -312,7 +330,7 @@ function App() {
       const res = await userApi.register(values);
       if (res.code === 0) {
         notification.success({ message: '注册成功', description: '您已成功注册账号，请使用刚才填写的账号密码进行登录！' });
-        setAuthMode('login'); // 自动切回登录状态
+        setAuthMode('login');
       }
     } catch (err: unknown) {
       console.error(err);
@@ -325,6 +343,7 @@ function App() {
       if (res.code === 0) {
         handleLocalClear();
         notification.info({ message: '安全登出', description: '您已成功退出登录，Token 已销毁。' });
+        navigate('/practice');
         window.location.reload();
       }
     } catch (err: unknown) {
@@ -342,8 +361,6 @@ function App() {
       message.warning('已经到最后一题了');
       return;
     }
-    // 只有在非只读（即做题）状态下，才需要前置阻断未登录游客。
-    // 如果是只读回顾模式 (isReadOnly === true)，应该允许直接打开详情进行历史回顾。
     if (!isReadOnly) {
       ensureAuth(() => {
         proceedLoadQuestionDetail(qId, isReadOnly);
@@ -364,9 +381,9 @@ function App() {
         setSelectedOption('');
         setSubmitResult(null);
         if (!isReadOnly) {
-          pageStorage.setActiveQuestionId(qId); // 仅在非只读（刷题）状态下保存进度
+          pageStorage.setActiveQuestionId(qId);
         } else {
-          pageStorage.setActiveQuestionId(null); // 只读查看时不记录为当前刷题进度
+          pageStorage.setActiveQuestionId(null);
         }
       }
       else setPageError(res.message || '题目详情加载失败');
@@ -401,8 +418,6 @@ function App() {
         setSubmitToken(() => 'token-ts-' + Date.now()); // 刷新幂等 Token
         notification.success({ message: '答案提交成功', description: res.data.isCorrect === 1 ? '回答正确！' : '回答错误，请查阅解析。' });
         
-        // 固化答题队列以防止错题本联动更新影响刷题流程：
-        // 错题/历史重新加载时，不破坏 activePracticeQueue，只更新后台数据列表，退出做题时再同步状态。
         const currentQueueBackup = [...activePracticeQueue];
         await loadWrongData(true);
         await loadHistoryData(true);
@@ -418,23 +433,16 @@ function App() {
     if (!checkUnsavedChanges()) return;
 
     const switchTab = () => {
-      setActiveKey(e.key);
       setQuestion(null); 
       setSelectedCategory(null);
       setActivePracticeQueue([]);
       setActiveSubmitId(null);
       setActiveHistoryQueue([]);
       pageStorage.clearPracticeState();
-
-      if (e.key === 'practice') loadQuestionList();
-      if (e.key === 'history') loadHistoryData();
-      if (e.key === 'wrong') loadWrongData();
-      if (e.key === 'assess') loadStatAndAnalysisData();
-      if (e.key === 'profile') loadProfileData();
+      navigate('/' + e.key);
     };
     
-    // 如果点击的是需要登录的标签，使用闭包拦截包装
-    if (e.key !== 'practice') {
+    if (e.key !== 'practice' && !e.key.startsWith('admin-')) {
       ensureAuth(switchTab, '请先登录系统后再查看该功能');
     } else {
       switchTab();
@@ -442,16 +450,12 @@ function App() {
   };
 
   const handleQuestionLink = (qId: string, queueIds?: string[]) => {
-    // 答题历史中查看题目的只读模式识别
-    const isFromHistory = activeKey === 'history';
+    const isFromHistory = location.pathname.startsWith('/history');
     
-    // 如果有外界传入的专有刷题队列，立即激活
     if (queueIds && queueIds.length > 0) {
       setActivePracticeQueue(queueIds);
     } else if (!isFromHistory) {
-      // 否则说明是在题库列表点进来的，或者是通过待复习错题直达的
-      // 根据大列表状态自动组装当前刷题上下文队列
-      const isWrongBook = activeKey === 'wrong';
+      const isWrongBook = location.pathname.startsWith('/wrong');
       const categoryToFilter = selectedCategory || (isWrongBook ? 'Java' : '');
       const listToExtract = isWrongBook ? wrongData.flatMap(item => item.list) : questionList;
       
@@ -465,7 +469,6 @@ function App() {
       if (filteredIds.length > 0 && filteredIds.includes(qId)) {
         setActivePracticeQueue(filteredIds);
       } else {
-        // 容错策略：如果不存在对应队列，以单题队列驱动
         setActivePracticeQueue([qId]);
       }
     }
@@ -476,7 +479,7 @@ function App() {
   const handleStartPracticeCategory = (category: string, sortedQuestionIds: string[]) => {
     if (sortedQuestionIds.length === 0) return;
     setActivePracticeQueue(sortedQuestionIds);
-    setActiveKey('practice');
+    navigate('/practice');
     loadQuestionDetail(sortedQuestionIds[0]);
     notification.success({
       message: '开始分类练习',
@@ -500,25 +503,24 @@ function App() {
 
   const handleReviewWrongCategory = async (category: string) => {
     if (!checkUnsavedChanges()) return;
-    setActiveKey('wrong');
     setQuestion(null);
     setSelectedCategory(null);
     setActivePracticeQueue([]);
     setTargetWrongCategory(category);
+    navigate('/wrong');
     await loadWrongData();
   };
 
   const handleBackToBankDetail = () => {
     if (!checkUnsavedChanges()) return;
     setQuestion(null);
-    pageStorage.setActiveQuestionId(null); // 清除题目进度，保留分类
-    if (activeKey === 'wrong') {
+    pageStorage.setActiveQuestionId(null);
+    if (location.pathname.startsWith('/wrong')) {
       setActivePracticeQueue([]);
       pageStorage.setPracticeQueue([]);
     }
     setActiveSubmitId(null);
     setActiveHistoryQueue([]);
-    // 保留 selectedCategory，这样会退回到具体的 Bank 页面
   };
 
   const handleBackToBanksList = () => {
@@ -532,11 +534,12 @@ function App() {
   };
 
   const retryCurrentPage = () => {
-    if (activeKey === 'practice') loadQuestionList();
-    if (activeKey === 'history') loadHistoryData();
-    if (activeKey === 'wrong') loadWrongData();
-    if (activeKey === 'assess') loadStatAndAnalysisData();
-    if (activeKey === 'profile') loadProfileData();
+    const path = location.pathname;
+    if (path.startsWith('/practice')) loadQuestionList();
+    if (path.startsWith('/history')) loadHistoryData();
+    if (path.startsWith('/wrong')) loadWrongData();
+    if (path.startsWith('/assess')) loadStatAndAnalysisData();
+    if (path.startsWith('/profile')) loadProfileData();
   };
 
   const renderPageState = (children: ReactNode) => {
@@ -568,6 +571,19 @@ function App() {
     return children;
   };
 
+  // 获取当前侧边栏高亮的 Menu 菜单 Key
+  const getSelectedMenuKey = () => {
+    const path = location.pathname;
+    if (path.startsWith('/practice')) return 'practice';
+    if (path.startsWith('/history')) return 'history';
+    if (path.startsWith('/wrong')) return 'wrong';
+    if (path.startsWith('/assess')) return 'assess';
+    if (path.startsWith('/profile')) return 'profile';
+    if (path.startsWith('/admin-users')) return 'admin-users';
+    if (path.startsWith('/admin-questions')) return 'admin-questions';
+    return 'practice';
+  };
+
   return (
     <ConfigProvider
       theme={{
@@ -579,194 +595,205 @@ function App() {
     >
       <Layout style={{ height: '100vh' }}>
         <Sider width={260} style={{ background: '#001529' }}>
-        <div className="app-logo" style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 'bold', gap: 8, borderBottom: '1px solid #334155' }}>
-          <span>面试刷题评估系统</span>
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[activeKey]}
-          onClick={handleMenuClick}
-          items={[
-            { key: 'practice', label: '题库大厅' },
-            { key: 'history', label: '答题历史' },
-            { key: 'wrong', label: '错题本复盘' },
-            { key: 'assess', label: '能力评估分析' },
-            { key: 'profile', label: '个人主页' },
-            ...(currentUser?.userRole === 1 ? [
-              { type: 'divider' as const },
-              { key: 'admin-users', label: '用户管理 (Admin)' },
-              { key: 'admin-questions', label: '题库管理 (Admin)' }
-            ] : [])
-          ]}
-        />
-      </Sider>
-      <Layout>
-        <Header style={{ background: '#fff', padding: '0 30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #d0d7de' }}>
-          <Title level={4} style={{ margin: 0 }}>
-            {activeKey === 'practice' && (
-              question 
-                ? '正在练习：' + question.title 
-                : selectedCategory 
-                  ? '题库详情：' + selectedCategory 
-                  : '题库大厅'
-            )}
-            {activeKey === 'history' && (
-              question 
-                ? '回顾历史题目：' + question.title 
-                : '答题历史'
-            )}
-            {activeKey === 'wrong' && (
-              question 
-                ? '正在复盘错题：' + question.title 
-                : '错题本复盘'
-            )}
-            {activeKey === 'assess' && '能力评估分析'}
-            {activeKey === 'profile' && '个人主页'}
-            {activeKey === 'admin-users' && '系统管理：用户清单与封禁'}
-            {activeKey === 'admin-questions' && '系统管理：题库维护'}
-          </Title>
-          <div className="user-status">
-            {currentUser ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: currentUser.avatarUrl ? '#fff' : '#1677ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 14, overflow: 'hidden', border: currentUser.avatarUrl ? '1px solid #e2e8f0' : 'none' }}>
-                  {currentUser.avatarUrl ? (
-                    <img src={currentUser.avatarUrl} alt="头像" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    (currentUser.nickname || currentUser.username).substring(0, 1).toUpperCase()
-                  )}
-                </div>
-                <Text strong>{currentUser.nickname}</Text>
-                <Button type="primary" danger size="small" onClick={handleLogout}>登出</Button>
-              </div>
-            ) : (
-              <Button type="primary" onClick={() => {
-                setAuthMode('login');
-                setIsLoginModalOpen(true);
-              }}>登录系统</Button>
-            )}
+          <div className="app-logo" style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16, fontWeight: 'bold', gap: 8, borderBottom: '1px solid #334155' }}>
+            <span>面试刷题评估系统</span>
           </div>
-        </Header>
-        
-        <Content style={{ padding: '30px', overflowY: 'auto' }}>
-          {activeKey === 'practice' && renderPageState(
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {/* 三级流转：Banks列表 -> Bank详情(当前分类题目) -> Question做题卡片 */}
-              {!selectedCategory && !question ? (
-                <QuestionBankList 
-                  questionList={questionList}
-                  onSelectCategory={(category) => setSelectedCategory(category)}
-                />
-              ) : selectedCategory && !question ? (
-                <QuestionBankDetail
-                  category={selectedCategory}
-                  questionList={questionList}
-                  onGoToDetail={handleQuestionLink}
-                  onStartPracticeCategory={handleStartPracticeCategory}
-                  onBack={handleBackToBanksList}
-                />
-              ) : loadingKey === 'question' ? (
-                <div className="page-loading-center">
-                  <Spin description="正在加载题目..." />
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[getSelectedMenuKey()]}
+            onClick={handleMenuClick}
+            items={[
+              { key: 'practice', label: '题库大厅' },
+              { key: 'history', label: '答题历史' },
+              { key: 'wrong', label: '错题本复盘' },
+              { key: 'assess', label: '能力评估分析' },
+              { key: 'profile', label: '个人主页' },
+              ...(currentUser?.userRole === 1 ? [
+                { type: 'divider' as const },
+                { key: 'admin-users', label: '用户管理 (Admin)' },
+                { key: 'admin-questions', label: '题库管理 (Admin)' }
+              ] : [])
+            ]}
+          />
+        </Sider>
+        <Layout>
+          <Header style={{ background: '#fff', padding: '0 30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #d0d7de' }}>
+            <Title level={4} style={{ margin: 0 }}>
+              {location.pathname.startsWith('/practice') && (
+                question 
+                  ? '正在练习：' + question.title 
+                  : selectedCategory 
+                    ? '题库详情：' + selectedCategory 
+                    : '题库大厅'
+              )}
+              {location.pathname.startsWith('/history') && (
+                question 
+                  ? '回顾历史题目：' + question.title 
+                  : '答题历史'
+              )}
+              {location.pathname.startsWith('/wrong') && (
+                question 
+                  ? '正在复盘错题：' + question.title 
+                  : '错题本复盘'
+              )}
+              {location.pathname.startsWith('/assess') && '能力评估分析'}
+              {location.pathname.startsWith('/profile') && '个人主页'}
+              {location.pathname.startsWith('/admin-users') && '系统管理：用户清单与封禁'}
+              {location.pathname.startsWith('/admin-questions') && '系统管理：题库维护'}
+            </Title>
+            <div className="user-status">
+              {currentUser ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: currentUser.avatarUrl ? '#fff' : '#1677ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: 14, overflow: 'hidden', border: currentUser.avatarUrl ? '1px solid #e2e8f0' : 'none' }}>
+                    {currentUser.avatarUrl ? (
+                      <img src={currentUser.avatarUrl} alt="头像" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      (currentUser.nickname || currentUser.username).substring(0, 1).toUpperCase()
+                    )}
+                  </div>
+                  <Text strong>{currentUser.nickname}</Text>
+                  <Button type="primary" danger size="small" onClick={handleLogout}>登出</Button>
                 </div>
               ) : (
-                <QuestionPlay
-                  key={question!.id}
-                  question={question!}
-                  selectedOption={selectedOption}
-                  onSelectOption={setSelectedOption}
-                  submitResult={submitResult}
-                  onSubmit={submitAnswer}
-                  onBack={handleBackToBankDetail}
-                  backText="返回题库列表"
-                  prevQuestionId={prevQuestionId}
-                  nextQuestionId={nextQuestionId}
-                  onGoToDetail={handleQuestionLink}
-                />
+                <Button type="primary" onClick={() => {
+                  setAuthMode('login');
+                  setIsLoginModalOpen(true);
+                }}>登录系统</Button>
               )}
-            </Space>
-          )}
+            </div>
+          </Header>
+          
+          <Content style={{ padding: '30px', overflowY: 'auto' }}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/practice" replace />} />
+              
+              <Route path="/practice" element={renderPageState(
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  {!selectedCategory && !question ? (
+                    <QuestionBankList 
+                      questionList={questionList}
+                      onSelectCategory={(category) => setSelectedCategory(category)}
+                    />
+                  ) : selectedCategory && !question ? (
+                    <QuestionBankDetail
+                      category={selectedCategory}
+                      questionList={questionList}
+                      onGoToDetail={handleQuestionLink}
+                      onStartPracticeCategory={handleStartPracticeCategory}
+                      onBack={handleBackToBanksList}
+                    />
+                  ) : loadingKey === 'question' ? (
+                    <div className="page-loading-center">
+                      <Spin description="正在加载题目..." />
+                    </div>
+                  ) : (
+                    <QuestionPlay
+                      key={question!.id}
+                      question={question!}
+                      selectedOption={selectedOption}
+                      onSelectOption={setSelectedOption}
+                      submitResult={submitResult}
+                      onSubmit={submitAnswer}
+                      onBack={handleBackToBankDetail}
+                      backText="返回题库列表"
+                      prevQuestionId={prevQuestionId}
+                      nextQuestionId={nextQuestionId}
+                      onGoToDetail={handleQuestionLink}
+                    />
+                  )}
+                </Space>
+              )} />
 
-          {activeKey === 'history' && renderPageState(
-            !question ? (
-              <HistoryList data={historyData} questionList={questionList} onReview={handleHistoryReview} />
-            ) : loadingKey === 'question' ? (
-              <div className="page-loading-center">
-                <Spin description="正在加载回顾..." />
-              </div>
-            ) : (
-              <QuestionReview
-                key={`${question!.id}-${activeSubmitId || 'unknown'}`}
-                question={question!}
-                record={activeHistoryRecord}
-                onBack={handleBackToBankDetail}
-                prevSubmitId={prevSubmitId}
-                nextSubmitId={nextSubmitId}
-                onGoToSubmit={handleHistorySubmitNav}
-              />
-            )
-          )}
+              <Route path="/history" element={renderPageState(
+                !question ? (
+                  <HistoryList data={historyData} questionList={questionList} onReview={handleHistoryReview} />
+                ) : loadingKey === 'question' ? (
+                  <div className="page-loading-center">
+                    <Spin description="正在加载回顾..." />
+                  </div>
+                ) : (
+                  <QuestionReview
+                    key={`${question!.id}-${activeSubmitId || 'unknown'}`}
+                    question={question!}
+                    record={activeHistoryRecord}
+                    onBack={handleBackToBankDetail}
+                    prevSubmitId={prevSubmitId}
+                    nextSubmitId={nextSubmitId}
+                    onGoToSubmit={handleHistorySubmitNav}
+                  />
+                )
+              )} />
 
-          {activeKey === 'wrong' && renderPageState(
-            !question ? (
-              <WrongBook
-                key={targetWrongCategory || 'wrong-book'}
-                data={wrongData}
-                initialCategory={targetWrongCategory}
-                onGoToDetail={handleQuestionLink}
-              />
-            ) : loadingKey === 'question' ? (
-              <div className="page-loading-center">
-                <Spin description="正在加载题目..." />
-              </div>
-            ) : (
-              <QuestionPlay
-                key={question!.id}
-                question={question!}
-                selectedOption={selectedOption}
-                onSelectOption={setSelectedOption}
-                submitResult={submitResult}
-                onSubmit={submitAnswer}
-                onBack={handleBackToBankDetail}
-                backText="返回错题列表"
-                prevQuestionId={prevQuestionId}
-                nextQuestionId={nextQuestionId}
-                onGoToDetail={handleQuestionLink}
-              />
-            )
-          )}
+              <Route path="/wrong" element={renderPageState(
+                !question ? (
+                  <WrongBook
+                    key={targetWrongCategory || 'wrong-book'}
+                    data={wrongData}
+                    initialCategory={targetWrongCategory}
+                    onGoToDetail={handleQuestionLink}
+                  />
+                ) : loadingKey === 'question' ? (
+                  <div className="page-loading-center">
+                    <Spin description="正在加载题目..." />
+                  </div>
+                ) : (
+                  <QuestionPlay
+                    key={question!.id}
+                    question={question!}
+                    selectedOption={selectedOption}
+                    onSelectOption={setSelectedOption}
+                    submitResult={submitResult}
+                    onSubmit={submitAnswer}
+                    onBack={handleBackToBankDetail}
+                    backText="返回错题列表"
+                    prevQuestionId={prevQuestionId}
+                    nextQuestionId={nextQuestionId}
+                    onGoToDetail={handleQuestionLink}
+                  />
+                )
+              )} />
 
-          {activeKey === 'assess' && renderPageState(
-            <AnalysisDashboard statData={statData} analysisData={analysisData} onReviewWrongCategory={handleReviewWrongCategory} />
-          )}
+              <Route path="/assess" element={renderPageState(
+                <AnalysisDashboard statData={statData} analysisData={analysisData} onReviewWrongCategory={handleReviewWrongCategory} />
+              )} />
 
-          {activeKey === 'profile' && renderPageState(
-            <ProfilePage
-              currentUser={currentUser}
-              profileData={profileData}
-              calendarData={calendarData}
-              onProfileUpdated={handleProfileUpdated}
-            />
-          )}
+              <Route path="/profile" element={renderPageState(
+                <ProfilePage
+                  currentUser={currentUser}
+                  profileData={profileData}
+                  calendarData={calendarData}
+                  onProfileUpdated={handleProfileUpdated}
+                />
+              )} />
 
-          {activeKey === 'admin-users' && (
-            <AdminUserList />
-          )}
+              <Route path="/admin-users" element={
+                currentUser?.userRole === 1 ? (
+                  <AdminUserList />
+                ) : (
+                  <Navigate to="/practice" replace />
+                )
+              } />
 
-          {activeKey === 'admin-questions' && (
-            <AdminQuestionList />
-          )}
-        </Content>
-      </Layout>
+              <Route path="/admin-questions" element={
+                currentUser?.userRole === 1 ? (
+                  <AdminQuestionList />
+                ) : (
+                  <Navigate to="/practice" replace />
+                )
+              } />
+            </Routes>
+          </Content>
+        </Layout>
 
-      <AuthModal
-        open={isLoginModalOpen}
-        mode={authMode}
-        onModeChange={setAuthMode}
-        onCancel={() => setIsLoginModalOpen(false)}
-        onLogin={onLoginFinish}
-        onRegister={onRegisterFinish}
-      />
+        <AuthModal
+          open={isLoginModalOpen}
+          mode={authMode}
+          onModeChange={setAuthMode}
+          onCancel={() => setIsLoginModalOpen(false)}
+          onLogin={onLoginFinish}
+          onRegister={onRegisterFinish}
+        />
       </Layout>
     </ConfigProvider>
   );

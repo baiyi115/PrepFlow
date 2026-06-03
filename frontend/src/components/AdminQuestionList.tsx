@@ -26,6 +26,7 @@ export const AdminQuestionList: React.FC = () => {
   const [questions, setQuestions] = useState<QuestionVO[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pageSize, setPageSize] = useState(10);
 
   // 模态框相关
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,6 +35,7 @@ export const AdminQuestionList: React.FC = () => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
+  // 模拟从外部加载，使用 useEffect 执行 fetch
   const fetchQuestions = async () => {
     setLoading(true);
     setError('');
@@ -50,7 +52,11 @@ export const AdminQuestionList: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchQuestions();
+    // 异步加载
+    const init = async () => {
+      await fetchQuestions();
+    };
+    init();
   }, []);
 
   const openCreateModal = () => {
@@ -230,7 +236,13 @@ export const AdminQuestionList: React.FC = () => {
             dataSource={questions} 
             columns={columns} 
             rowKey="id" 
-            pagination={{ pageSize: 12 }} 
+            pagination={{ 
+              pageSize: pageSize,
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '30', '50'],
+              onChange: (_, size) => setPageSize(size)
+            }} 
+            scroll={{ y: 480 }}
             size="large"
           />
         )}
