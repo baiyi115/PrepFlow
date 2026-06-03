@@ -78,7 +78,6 @@ function App() {
     };
   };
 
-  const activeHistoryRecord = activeSubmitId ? historyData.find(item => item.submitId === activeSubmitId) || null : null;
   const activeHistoryIndex = activeSubmitId ? activeHistoryQueue.indexOf(activeSubmitId) : -1;
   const prevSubmitId = activeHistoryIndex > 0 ? activeHistoryQueue[activeHistoryIndex - 1] : null;
   const nextSubmitId = activeHistoryIndex >= 0 && activeHistoryIndex < activeHistoryQueue.length - 1 ? activeHistoryQueue[activeHistoryIndex + 1] : null;
@@ -571,7 +570,6 @@ function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/practice" replace />} />
               
-              {/* 题库专区细分路由 */}
               <Route path="/practice" element={renderPageState(
                 <Space direction="vertical" size="large" style={{ width: '100%' }}>
                   <QuestionBankList 
@@ -616,7 +614,6 @@ function App() {
                 />
               )} />
 
-              {/* 答题历史细分路由 */}
               <Route path="/history" element={renderPageState(
                 <HistoryList data={historyData} questionList={questionList} onReview={handleHistoryReview} />
               )} />
@@ -624,7 +621,9 @@ function App() {
                 <HistoryPlayWrapper
                   loadingKey={loadingKey}
                   question={question}
-                  activeHistoryRecord={activeHistoryRecord}
+                  historyData={historyData}
+                  setActiveSubmitId={setActiveSubmitId}
+                  setActiveHistoryQueue={setActiveHistoryQueue}
                   prevSubmitId={prevSubmitId}
                   nextSubmitId={nextSubmitId}
                   handleHistorySubmitNav={handleHistorySubmitNav}
@@ -633,7 +632,6 @@ function App() {
                 />
               )} />
 
-              {/* 错题本细分路由 */}
               <Route path="/wrong" element={renderPageState(
                 <WrongBookWrapper
                   wrongData={wrongData}
@@ -704,8 +702,6 @@ function App() {
     </ConfigProvider>
   );
 }
-
-// 静态化的子组件（声明在 App 外部以避免 render 重构警告）
 
 interface CategoryDetailWrapperProps {
   questionList: QuestionVO[];
@@ -809,7 +805,9 @@ function CategoryPlayWrapper({
 interface HistoryPlayWrapperProps {
   loadingKey: string | null;
   question: QuestionDetailVO | null;
-  activeHistoryRecord: UserSubmitVO | null;
+  historyData: UserSubmitVO[];
+  setActiveSubmitId: (id: string | null) => void;
+  setActiveHistoryQueue: (queue: string[]) => void;
   prevSubmitId: string | null;
   nextSubmitId: string | null;
   handleHistorySubmitNav: (submitId: string) => void;
@@ -820,7 +818,9 @@ interface HistoryPlayWrapperProps {
 function HistoryPlayWrapper({
   loadingKey,
   question,
-  activeHistoryRecord,
+  historyData,
+  setActiveSubmitId,
+  setActiveHistoryQueue,
   prevSubmitId,
   nextSubmitId,
   handleHistorySubmitNav,
@@ -835,6 +835,18 @@ function HistoryPlayWrapper({
       proceedLoadQuestionDetail(questionId, true);
     }
   }, [questionId, proceedLoadQuestionDetail]);
+
+  useEffect(() => {
+    if (questionId && historyData.length > 0) {
+      const match = historyData.find(item => item.questionId === questionId);
+      if (match) {
+        setActiveSubmitId(match.submitId);
+        setActiveHistoryQueue(historyData.map(item => item.submitId));
+      }
+    }
+  }, [questionId, historyData, setActiveSubmitId, setActiveHistoryQueue]);
+
+  const activeHistoryRecord = historyData.find(item => item.questionId === questionId) || null;
 
   const handleBack = () => {
     if (!checkUnsavedChanges()) return;
