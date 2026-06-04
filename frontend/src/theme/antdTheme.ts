@@ -1,7 +1,7 @@
-import { colors, radius } from './tokens';
 import type { ThemeConfig } from 'antd';
+import type { ColorPalette } from './tokens';
 
-export const themeConfig: ThemeConfig = {
+export const getAntdTheme = (colors: ColorPalette, isDark: boolean): ThemeConfig => ({
   token: {
     colorPrimary: colors.primary,
     colorPrimaryHover: colors.primaryHover,
@@ -18,35 +18,36 @@ export const themeConfig: ThemeConfig = {
 
     colorBgLayout: colors.gray100,
     colorBgContainer: colors.gray50,
-    colorBorder: colors.gray200,
+    colorBgElevated: isDark ? colors.gray200 : '#fff',
+    colorBorder: colors.gray300,
     colorBorderSecondary: colors.gray200,
 
     colorText: colors.gray900,
     colorTextSecondary: colors.gray600,
     colorTextTertiary: colors.gray400,
 
-    borderRadius: radius.base,
+    borderRadius: 8,
   },
   components: {
     Menu: {
-      colorItemBg: colors.gray800,
-      colorItemBgActive: colors.gray900,
-      colorItemText: colors.gray300,
-      colorItemTextSelected: colors.gray50,
-      colorItemBgHover: colors.gray700,
+      colorItemBg: colors.gray100,
+      colorItemBgActive: colors.primaryBg,
+      colorItemText: colors.gray600,
+      colorItemTextSelected: colors.primary,
+      colorItemBgHover: colors.gray100,
     },
     Layout: {
       headerBg: colors.gray50,
       bodyBg: colors.gray100,
-      siderBg: colors.gray800,
+      siderBg: colors.gray100,
       headerPadding: '0 24px',
     },
     Card: {
       paddingLG: 24,
-      borderRadiusLG: radius.card,
+      borderRadiusLG: 16,
     },
     Button: {
       primaryShadow: '0 2px 0 rgba(217,119,6,0.15)',
     },
   },
-};
+});

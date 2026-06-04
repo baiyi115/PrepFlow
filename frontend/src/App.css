@@ -1,37 +1,79 @@
-/* Centralized Blue-Gray Theme and Custom Layout CSS */
-
 :root {
-  --primary-color: #3b82f6;
-  --bg-dark: #1e293b;
-  --bg-darker: #0f172a;
-  --bg-light: #f8fafc;
-  --border-color: #e2e8f0;
-  --text-main: #334155;
-  --text-secondary: #64748b;
+  --primary-color: #d97706;
+  --bg-dark: #292524;
+  --bg-darker: #1c1917;
+  --bg-main: #ffffff;
+  --border-color: #e7e5e4;
+  --text-main: #1c1917;
+  --text-secondary: #57534e;
   --max-width: 1200px;
+}
+
+[data-theme="dark"] {
+  --bg-dark: #1a1a18;
+  --bg-darker: #11110f;
+  --bg-main: #1a1a18;
+  --border-color: #312e2b;
+  --text-main: #f5f2ed;
+  --text-secondary: #88837d;
 }
 
 .page-container {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 12px 0 30px;
+  padding: 20px 0 40px;
+  animation: fadeInUp 0.35s ease-out;
 }
 
-.custom-card {
-  border-radius: 16px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid var(--border-color) !important;
+.section-card {
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
   overflow: hidden;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.section-card:hover {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .section-card:hover {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+
+.section-card-secondary {
+  border-radius: 14px;
+  background: #f5f5f4;
+  border: none;
+  overflow: hidden;
+}
+
+[data-theme="dark"] .section-card-secondary {
+  background: #252422;
+}
+
+.section-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .stat-card-title {
   color: var(--text-secondary) !important;
   font-size: 14px;
+  letter-spacing: 0.02em;
 }
 
 .stat-card-value {
   margin: 8px 0 0 !important;
   font-weight: 700 !important;
+  font-family: Consolas, Monaco, "Courier New", monospace !important;
+  font-variant-numeric: tabular-nums;
 }
 
 .flex-between-wrap {
@@ -48,6 +90,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fadeIn 0.3s ease-out;
 }
 
 .element-loading-center {
@@ -56,6 +99,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: fadeIn 0.3s ease-out;
 }
 
 .calendar-scroll-container {
@@ -81,18 +125,85 @@
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--border-color);
 }
 
-/* Global Table Text Alignment and Layout Centering */
 .ant-table-wrapper .ant-table-thead > tr > th,
 .ant-table-wrapper .ant-table-tbody > tr > td {
   text-align: center !important;
 }
 
-/* Reset title link alignment to look neat when centered */
 .ant-table-wrapper .ant-table-tbody > tr > td .ant-btn-link {
   display: inline-block;
   text-align: center;
 }
 
+.ant-table-wrapper .ant-table-tbody > tr > td .ant-btn-link {
+  display: inline-block;
+  text-align: center;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ant-table-row {
+  transition: background 0.2s ease;
+}
+
+.ant-table-row:hover td {
+  background: rgba(217, 119, 6, 0.03) !important;
+}
+
+.ant-btn {
+  transition: all 0.2s ease !important;
+}
+
+.ant-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.ant-btn:active {
+  transform: scale(0.97) !important;
+}
+
+.ant-btn-primary:not(:disabled):hover {
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.25);
+}
+
+button:not(:disabled) {
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.97);
+}

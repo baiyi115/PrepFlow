@@ -1,8 +1,8 @@
 import React from 'react';
-import { Card, Row, Col, Typography, Divider, Progress, Space, Tag, Empty, Button } from 'antd';
+import { Button } from 'antd';
 import type { CategoryStatVO, WeaknessAnalysisVO } from '../types';
-
-const { Title, Text } = Typography;
+import { useColors } from '../context/ThemeContext';
+import { BarChart3 } from 'lucide-react';
 
 interface Props {
   statData: CategoryStatVO[];
@@ -11,6 +11,13 @@ interface Props {
 }
 
 export const AnalysisDashboard: React.FC<Props> = ({ statData, analysisData, onReviewWrongCategory }) => {
+  const colors = useColors();
+  const levelColors: Record<string, string> = {
+    '薄弱': colors.error,
+    '一般': colors.primary,
+    '良好': colors.success,
+    '优秀': colors.primary,
+  };
   const hasStats = statData.length > 0;
   const totalCount = statData.reduce((sum, item) => sum + item.totalCount, 0);
   const correctCount = statData.reduce((sum, item) => sum + item.correctCount, 0);
@@ -19,75 +26,86 @@ export const AnalysisDashboard: React.FC<Props> = ({ statData, analysisData, onR
   const weaknessCount = analysisData.filter(item => item.level === '薄弱').length;
   const analysisMap = new Map(analysisData.map(item => [item.category, item]));
 
-  return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      {hasStats && (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card><Text type="secondary">总答题数</Text><Title level={3} style={{ margin: '8px 0 0' }}>{totalCount}</Title></Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card><Text type="secondary">正确题数</Text><Title level={3} style={{ margin: '8px 0 0', color: '#0f766e' }}>{correctCount}</Title></Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card><Text type="secondary">错误题数</Text><Title level={3} style={{ margin: '8px 0 0', color: '#dc2626' }}>{wrongCount}</Title></Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card><Text type="secondary">总体正确率</Text><Title level={3} style={{ margin: '8px 0 0', color: '#3b82f6' }}>{totalRate}%</Title></Card>
-          </Col>
-          <Col span={24}>
-            <Card>
-              <Text strong style={{ color: '#1e293b' }}>优先复习方向：</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                {weaknessCount > 0 ? `当前有 ${weaknessCount} 个薄弱分类，建议优先从薄弱项开始复盘。` : '当前没有明显薄弱分类，继续保持稳定练习。'}
-              </Text>
-            </Card>
-          </Col>
-        </Row>
-      )}
+  if (!hasStats) {
+    return (
+      <div style={{ textAlign: 'center', padding: '100px 20px', background: colors.gray100, borderRadius: 16 }}>
+        <div style={{ width: 56, height: 56, borderRadius: 14, background: colors.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <BarChart3 size={24} color={colors.gray400} />
+        </div>
+        <h2 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 700, color: colors.gray800 }}>暂无能力诊断</h2>
+        <p style={{ margin: 0, color: colors.gray500, fontSize: 14 }}>完成几道题后，按分类生成正确率与复习建议</p>
+      </div>
+    );
+  }
 
-      <Card title="各分类能力诊断">
-        {!hasStats ? (
-          <Empty description="暂无能力诊断。完成几道题后，这里会自动生成各分类正确率与复习建议。" />
-        ) : (
-          <Row gutter={[20, 20]}>
-            {statData.map(stat => {
-              const rate = Number.parseFloat(stat.correctRate).toFixed(1);
-              const analysis = analysisMap.get(stat.category);
-              let tagColor: "error" | "success" | "warning" = 'warning';
-              if (analysis?.level === '薄弱') tagColor = 'error';
-              if (analysis?.level === '良好') tagColor = 'success';
-              return (
-                <Col xs={24} sm={12} lg={8} key={stat.category}>
-                  <Card size="small" style={{ border: '1px solid #d9e2ec', borderRadius: 8, height: '100%' }}>
-                    <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <Title level={5} style={{ margin: 0, color: '#1e293b' }}>{stat.category}</Title>
-                      {analysis && <Tag color={tagColor}>{analysis.level}</Tag>}
-                    </Space>
-                    <Text type="secondary" style={{ fontSize: 12 }}>答题总数：{stat.totalCount} 次</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: 12 }}>正确：{stat.correctCount} | 错误：{stat.wrongCount}</Text>
-                    <Divider style={{ margin: '10px 0' }} />
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <Text>正确率：</Text>
-                      <Text strong>{rate}%</Text>
-                    </div>
-                    <Progress percent={Number(rate)} showInfo={false} strokeColor={{ '0%': '#3b82f6', '100%': '#0f766e' }} status="active" />
-                    <div style={{ color: '#475569', minHeight: 44, marginTop: 12 }}>
-                      {analysis?.suggestion || '继续完成更多题目后，系统会生成更准确的学习建议。'}
-                    </div>
-                    {stat.wrongCount > 0 && (
-                      <Button size="small" type="primary" style={{ marginTop: 12 }} onClick={() => onReviewWrongCategory(stat.category)}>
-                        复盘该分类错题
-                      </Button>
-                    )}
-                  </Card>
-                </Col>
-              );
-            })}
-          </Row>
-        )}
-      </Card>
-    </Space>
+  const statTiles = [
+    { label: '总答题数', value: totalCount, color: colors.gray900 },
+    { label: '正确题数', value: correctCount, color: colors.success },
+    { label: '错误题数', value: wrongCount, color: colors.error },
+    { label: '总体正确率', value: `${totalRate}%`, color: colors.primary },
+  ];
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
+        {statTiles.map(s => (
+          <div key={s.label} style={{ padding: '20px 18px', borderRadius: 14, border: `1px solid ${colors.gray200}`, background: colors.gray100 }}>
+            <div style={{ fontSize: 12, color: colors.gray500, fontWeight: 500, marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12, background: colors.gray100, marginBottom: 28 }}>
+        <div style={{ width: 3, height: 20, borderRadius: 2, background: weaknessCount > 0 ? colors.error : colors.primary, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, color: colors.gray600, lineHeight: 1.5 }}>
+          {weaknessCount > 0
+            ? `当前有 ${weaknessCount} 个薄弱分类，建议优先从薄弱项开始复盘`
+            : '当前没有明显薄弱分类，继续保持稳定练习'}
+        </span>
+      </div>
+
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: colors.gray900, margin: '0 0 16px' }}>各分类能力诊断</h2>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+        {statData.map(stat => {
+          const rate = Number.parseFloat(stat.correctRate).toFixed(1);
+          const analysis = analysisMap.get(stat.category);
+          const level = analysis?.level || 'unknown';
+          const accent = levelColors[level] || colors.gray500;
+
+          return (
+            <div key={stat.category} style={{ borderRadius: 14, border: `1px solid ${colors.gray200}`, padding: 20, background: colors.gray100, transition: 'box-shadow 0.25s ease, transform 0.25s ease' }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: colors.gray800 }}>{stat.category}</span>
+                {analysis && (
+                  <span style={{ fontSize: 12, fontWeight: 600, color: accent }}>{analysis.level}</span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: colors.gray500, marginBottom: 10 }}>
+                答题 {stat.totalCount} 次 · 正确 {stat.correctCount} · 错误 {stat.wrongCount}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1, height: 10, background: colors.gray200, borderRadius: 5, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 5, width: `${rate}%`, background: accent }} />
+                </div>
+                <span style={{ fontSize: 15, fontWeight: 700, color: accent, minWidth: 44, textAlign: 'right' }}>{rate}%</span>
+              </div>
+              <div style={{ fontSize: 13, color: colors.gray600, lineHeight: 1.5, minHeight: 36 }}>
+                {analysis?.suggestion || '继续完成更多题目后生成更准确的建议'}
+              </div>
+              {stat.wrongCount > 0 && (
+                <Button size="small" onClick={() => onReviewWrongCategory(stat.category)} style={{ marginTop: 10, borderRadius: 8, fontSize: 13 }}>
+                  复盘错题
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };

@@ -4,10 +4,53 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>面试刷题评估平台</title>
+    <style>
+      .s-loader{display:flex;flex-direction:column;min-height:100vh;background:#f5f5f4}
+      .s-header{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 48px;border-bottom:1px solid #e7e5e4}
+      .s-nav{display:flex;gap:8px}
+      .s-pill{height:36px;width:72px;border-radius:10px;background:#e7e5e4;animation:pulse 1.5s ease-in-out infinite}
+      .s-pill:first-child{background:#d97706;width:64px}
+      .s-avatar{width:32px;height:32px;border-radius:50%;background:#e7e5e4;animation:pulse 1.5s ease-in-out infinite}
+      .s-body{padding:32px;max-width:1200px;margin:0 auto;width:100%}
+      .s-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+      .s-card{height:160px;border-radius:12px;background:#fff;padding:20px;display:flex;flex-direction:column;gap:12px}
+      .s-line{height:14px;border-radius:6px;background:#e7e5e4;animation:pulse 1.5s ease-in-out infinite}
+      .s-line:nth-child(1){width:55%}
+      .s-line:nth-child(2){width:85%}
+      .s-line:nth-child(3){width:40%}
+      .s-line:nth-child(4){width:65%;margin-top:auto}
+      .s-bar{height:8px;border-radius:4px;background:#e7e5e4;animation:pulse 1.5s ease-in-out infinite;width:100%;margin-top:8px}
+      @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+      @media(prefers-color-scheme:dark){.s-loader{background:#1c1917}.s-header{border-bottom-color:#292524}.s-pill{background:#292524}.s-pill:first-child{background:#92400e;width:64px}.s-avatar{background:#292524}.s-card{background:#292524}.s-line{background:#3a3533}.s-bar{background:#3a3533}}
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="s-loader">
+        <div class="s-header">
+          <div class="s-nav">
+            <div class="s-pill"></div>
+            <div class="s-pill"></div>
+            <div class="s-pill"></div>
+            <div class="s-pill"></div>
+            <div class="s-pill"></div>
+          </div>
+          <div class="s-avatar"></div>
+        </div>
+        <div class="s-body">
+          <div class="s-grid">
+            <div class="s-card"><div class="s-line"></div><div class="s-line"></div><div class="s-line"></div><div class="s-bar"></div></div>
+            <div class="s-card"><div class="s-line"></div><div class="s-line"></div><div class="s-line"></div><div class="s-bar"></div></div>
+            <div class="s-card"><div class="s-line"></div><div class="s-line"></div><div class="s-line"></div><div class="s-bar"></div></div>
+            <div class="s-card"><div class="s-line"></div><div class="s-line"></div><div class="s-line"></div><div class="s-bar"></div></div>
+            <div class="s-card"><div class="s-line"></div><div class="s-line"></div><div class="s-line"></div><div class="s-bar"></div></div>
+            <div class="s-card"><div class="s-line"></div><div class="s-line"></div><div class="s-line"></div><div class="s-bar"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Card, Button, Space, Tag, Divider, Alert } from 'antd';
+import { Button, Space, Tag } from 'antd';
 import type { QuestionDetailVO, UserSubmitVO } from '../types';
+import { useColors } from '../context/ThemeContext';
 
 interface Props {
   question: QuestionDetailVO;
@@ -12,13 +13,10 @@ interface Props {
 }
 
 export const QuestionReview: React.FC<Props> = ({
-  question,
-  record,
-  onBack,
-  prevSubmitId,
-  nextSubmitId,
-  onGoToSubmit
+  question, record, onBack,
+  prevSubmitId, nextSubmitId, onGoToSubmit
 }) => {
+  const colors = useColors();
   const selectedOption = record?.selectedOptionLabel || '';
   const correctOption = record?.correctOptionLabel || '';
   const isCorrect = record?.isCorrect === 1;
@@ -26,101 +24,92 @@ export const QuestionReview: React.FC<Props> = ({
   const createTime = record?.createTime || '';
 
   return (
-    <Card 
-      style={{ borderLeft: '4px solid #8c8c8c' }} 
-      title={
-        <Space size="middle">
-          <span>回顾历史题目</span>
-          <Tag color="default">只读回顾</Tag>
-          {record && (
-            <Tag color={isCorrect ? 'success' : 'error'}>
-              {isCorrect ? '当时回答正确' : '当时回答错误'}
-            </Tag>
-          )}
-        </Space>
-      }
-      extra={<Button type="default" size="small" onClick={onBack}>返回历史记录</Button>}
-    >
-      {/* 题目内容 */}
-      <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>{question.title}</div>
-      <div style={{ fontSize: 15, marginBottom: 24, whiteSpace: 'pre-wrap', color: '#595959' }}>{question.content}</div>
-      
-      {/* 选项组展示 - 仅静态呈现 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-        {question.options && question.options.map(opt => {
+    <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <div style={{ background: colors.gray100, borderRadius: 14, padding: '20px 24px', marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: colors.gray900 }}>回顾历史题目</h2>
+            <Tag color="default" style={{ borderRadius: 6 }}>只读</Tag>
+            {record && <Tag color={isCorrect ? 'success' : 'error'} style={{ borderRadius: 6 }}>{isCorrect ? '当时正确' : '当时错误'}</Tag>}
+          </div>
+          <Button type="text" size="small" onClick={onBack} style={{ color: colors.gray500 }}>返回历史</Button>
+        </div>
+      </div>
+
+      <h3 style={{ fontSize: 16, fontWeight: 600, color: colors.gray900, marginBottom: 8 }}>{question.title}</h3>
+      {question.content && (
+        <div style={{
+          fontSize: 15, color: colors.gray600, marginBottom: 24, padding: '18px 22px',
+          background: colors.gray100, borderRadius: 12, whiteSpace: 'pre-wrap', lineHeight: 1.7,
+        }}>
+          {question.content}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+        {question.options?.map(opt => {
           const isUserSelected = selectedOption === opt.optionLabel;
           const isCorrectAnswer = correctOption === opt.optionLabel;
-          
-          let bgColor = '#f8fafc';
-          let borderColor = '#e2e8f0';
-          const borderStyle = 'solid';
-
-          if (isCorrectAnswer) {
-            bgColor = '#f6ffed';
-            borderColor = '#52c41a';
-          } else if (isUserSelected && !isCorrect) {
-            bgColor = '#fff1f0';
-            borderColor = '#ff4d4f';
-          }
+          let bg: string = colors.gray100;
+          let borderColor: string = colors.gray200;
+          let textColor: string = colors.gray800;
+          if (isCorrectAnswer) { bg = colors.successBg; borderColor = colors.success; textColor = colors.successHover; }
+          else if (isUserSelected && !isCorrect) { bg = colors.errorBg; borderColor = colors.error; textColor = colors.errorHover; }
 
           return (
-            <div 
-              key={opt.optionLabel} 
-              style={{
-                padding: '14px 18px',
-                background: bgColor,
-                border: `1px ${borderStyle}`,
-                borderColor: borderColor,
-                borderRadius: 8,
-                cursor: 'not-allowed',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
+            <div key={opt.optionLabel} style={{
+              padding: '14px 18px', borderRadius: 10, background: bg,
+              border: '1.5px solid', borderColor, cursor: 'default',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              color: textColor, fontWeight: isCorrectAnswer || (isUserSelected && !isCorrect) ? 600 : 400,
+            }}>
               <span>{opt.optionLabel}. {opt.optionContent}</span>
-              <Space>
-                {isCorrectAnswer && <Tag color="success">正确答案</Tag>}
-                {isUserSelected && <Tag color={isCorrect ? 'success' : 'error'}>您的选择</Tag>}
+              <Space size={4}>
+                {isCorrectAnswer && <Tag color="success" style={{ borderRadius: 6 }}>正确答案</Tag>}
+                {isUserSelected && <Tag color={isCorrect ? 'success' : 'error'} style={{ borderRadius: 6 }}>您的选择</Tag>}
               </Space>
             </div>
           );
         })}
       </div>
 
-      {/* 答题报告卡片 */}
       {record && (
-        <Alert
-          message={<strong>答题历史报告</strong>}
-          description={
-            <div style={{ marginTop: 8 }}>
-              答题时间：{createTime.replace('T', ' ')} &nbsp;|&nbsp; 
-              得分：<strong style={{ color: isCorrect ? '#52c41a' : '#ff4d4f' }}>{score} 分</strong> &nbsp;|&nbsp; 
-              判题结果：{isCorrect ? <span style={{ color: '#52c41a', fontWeight: 'bold' }}>正确</span> : <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>错误</span>}
-            </div>
-          }
-          type={isCorrect ? 'success' : 'error'}
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
-      )}
-
-      <Divider style={{ margin: '24px 0' }} />
-
-      {/* 解析部分 */}
-      {record && record.analysis && (
-        <div style={{ padding: 16, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 24 }}>
-          <div style={{ fontWeight: 'bold', color: '#1e293b', fontSize: 15, marginBottom: 8 }}>题目深度解析</div>
-          <div style={{ color: '#475569', lineHeight: '22px' }}>{record.analysis}</div>
+        <div style={{
+          padding: 16, borderRadius: 12, marginBottom: 24,
+          background: isCorrect ? colors.successBg : colors.errorBg,
+          border: `1px solid ${isCorrect ? colors.success : colors.error}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 20, height: 20, borderRadius: 5,
+              background: isCorrect ? colors.success : colors.error,
+              fontSize: 11, fontWeight: 700, color: '#fff',
+            }}>
+              {isCorrect ? '✓' : '✗'}
+            </span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: isCorrect ? colors.successHover : colors.errorHover }}>
+              答题结果：{isCorrect ? '正确' : '错误'}
+            </span>
+          </div>
+          <div style={{ color: colors.gray600, fontSize: 13 }}>
+            {createTime.replace('T', ' ')} · 得分：<span style={{ fontWeight: 600, color: colors.gray800 }}>{score} 分</span>
+          </div>
         </div>
       )}
 
-      {/* 上下文导航控制 */}
-      <Space style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-        <Button disabled={prevSubmitId === null} onClick={() => onGoToSubmit(prevSubmitId!)}>上一条</Button>
-        <Button size="large" type="dashed" disabled>历史回顾模式</Button>
-        <Button disabled={nextSubmitId === null} onClick={() => onGoToSubmit(nextSubmitId!)}>下一条</Button>
-      </Space>
-    </Card>
+      {record?.analysis && (
+        <div style={{ padding: 16, background: colors.gray100, borderRadius: 12, border: `1px solid ${colors.gray200}`, marginBottom: 24 }}>
+          <div style={{ fontWeight: 600, color: colors.gray800, marginBottom: 8, fontSize: 14 }}>题目深度解析</div>
+          <div style={{ color: colors.gray600, lineHeight: 1.7, fontSize: 14 }}>{record.analysis}</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Button disabled={prevSubmitId === null} onClick={() => prevSubmitId && onGoToSubmit(prevSubmitId)}>上一条</Button>
+        <Button type="dashed" disabled style={{ borderRadius: 10 }}>历史回顾模式</Button>
+        <Button disabled={nextSubmitId === null} onClick={() => nextSubmitId && onGoToSubmit(nextSubmitId)}>下一条</Button>
+      </div>
+    </div>
   );
 };

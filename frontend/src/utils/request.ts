@@ -1,4 +1,4 @@
-import { message } from 'antd';
+import { toast } from './toast';
 import type { BaseResponse } from '../types';
 
 const BASE_URL = '/api';
@@ -33,18 +33,16 @@ export async function request<T>(url: string, options: RequestOptions = {}): Pro
 
     if (data.code !== 0 && !options.skipErrorHandler) {
       if (data.code === 40100) {
-        // Need to login, handle in components using custom event or let components handle
-        // but it's better to fire an event
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       } else {
-        message.error(data.message || '请求失败');
+        toast.error(data.message || '请求失败');
       }
     }
 
     return data;
   } catch (error: unknown) {
     if (!options.skipErrorHandler) {
-      message.error((error as Error).message || '网络错误');
+      toast.error((error as Error).message || '网络错误');
     }
     throw error;
   }

@@ -1,5 +1,6 @@
 import { Tag } from 'antd';
 import type { ReactNode } from 'react';
+import { lightColors } from '../theme/tokens';
 
 export type SortOrder = 'default' | 'asc' | 'desc';
 export type SortField = 'difficulty' | 'title';
@@ -26,7 +27,7 @@ export const getSortArrow = (sortState: SortState, field: SortField) => {
 };
 
 export const getSortArrowColor = (sortState: SortState, field: SortField) => {
-  return sortState.sortBy === field && sortState.order !== 'default' ? '#1890ff' : '#8c8c8c';
+  return sortState.sortBy === field && sortState.order !== 'default' ? lightColors.primary : lightColors.gray500;
 };
 
 export const renderSortableHeader = (label: string, field: SortField, sortState: SortState, onSort: (field: SortField) => void): ReactNode => (
