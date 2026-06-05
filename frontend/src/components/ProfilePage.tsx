@@ -137,25 +137,25 @@ export const ProfilePage: React.FC<Props> = ({ currentUser, profileData, calenda
 
       <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
         <Col xs={12} sm={6}>
-          <div style={{ padding: '20px 22px', borderRadius: 14, border: `1px solid ${colors.gray200}`, background: colors.gray100 }}>
+          <div style={{ padding: '20px 22px', borderRadius: 14, background: colors.gray100, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ fontSize: 12, color: colors.gray500, fontWeight: 500, marginBottom: 6 }}>累计答题</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: colors.gray900, lineHeight: 1.1 }}>{totalCount}</div>
           </div>
         </Col>
         <Col xs={12} sm={6}>
-          <div style={{ padding: '20px 22px', borderRadius: 14, background: colors.successBg }}>
+          <div style={{ padding: '20px 22px', borderRadius: 14, background: `linear-gradient(135deg, ${colors.successBg}, ${colors.gray50})`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ fontSize: 12, color: colors.success, fontWeight: 600, opacity: 0.7, marginBottom: 6 }}>答对</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: colors.success, lineHeight: 1.1 }}>{correctCount}</div>
           </div>
         </Col>
         <Col xs={12} sm={6}>
-          <div style={{ padding: '20px 22px', borderRadius: 14, background: colors.errorBg }}>
+          <div style={{ padding: '20px 22px', borderRadius: 14, background: `linear-gradient(135deg, ${colors.errorBg}, ${colors.gray50})`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ fontSize: 12, color: colors.error, fontWeight: 600, opacity: 0.7, marginBottom: 6 }}>答错</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: colors.error, lineHeight: 1.1 }}>{wrongCount}</div>
           </div>
         </Col>
         <Col xs={12} sm={6}>
-          <div style={{ padding: '20px 22px', borderRadius: 14, background: colors.primaryBg }}>
+          <div style={{ padding: '20px 22px', borderRadius: 14, background: `linear-gradient(135deg, ${colors.primaryBg}, ${colors.gray50})`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ fontSize: 12, color: colors.primary, fontWeight: 600, opacity: 0.7, marginBottom: 6 }}>待复盘</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: colors.primary, lineHeight: 1.1 }}>{activeWrongCount}</div>
           </div>
@@ -202,7 +202,7 @@ export const ProfilePage: React.FC<Props> = ({ currentUser, profileData, calenda
                   const levelColor = n >= 70 ? colors.success : n >= 50 ? colors.primary : colors.error;
                   return (
                     <div key={item.category} style={{
-                      background: colors.gray100, borderRadius: 10, overflow: 'hidden',
+                      background: `linear-gradient(135deg, ${colors.gray100}, ${colors.gray50})`, borderRadius: 10, overflow: 'hidden',
                       border: `1px solid ${colors.gray200}`, position: 'relative',
                     }}>
                       <div style={{

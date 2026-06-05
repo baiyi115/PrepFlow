@@ -30,11 +30,11 @@ export const getAntdTheme = (colors: ColorPalette, isDark: boolean): ThemeConfig
   },
   components: {
     Menu: {
-      colorItemBg: colors.gray100,
-      colorItemBgActive: colors.primaryBg,
-      colorItemText: colors.gray600,
-      colorItemTextSelected: colors.primary,
-      colorItemBgHover: colors.gray100,
+      itemBg: colors.gray100,
+      itemActiveBg: colors.primaryBg,
+      itemColor: colors.gray600,
+      itemSelectedColor: colors.primary,
+      itemHoverBg: colors.gray100,
     },
     Layout: {
       headerBg: colors.gray50,

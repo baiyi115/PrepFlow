@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
+import type { Locale } from 'antd/es/locale';
 import { toast } from './utils/toast';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import type { UserVO, QuestionVO, QuestionDetailVO, SubmitAnswerVO, UserSubmitVO, GroupedWrongBookVO, CategoryStatVO, WeaknessAnalysisVO, UserProfileVO, CalendarItemVO } from './types';
@@ -10,12 +10,11 @@ import { getToken, setToken as setLocalToken, removeToken } from './utils/reques
 import { pageStorage } from './utils/pageStorage';
 import { getAntdTheme } from './theme/antdTheme';
 import { useColors, useTheme } from './context/ThemeContext';
+import type { AuthMode } from './components/AuthModal';
+import { MainLayout } from './components/layout/MainLayout';
 import './App.css';
 
-import { QuestionBankList } from './components/QuestionBankList';
-import type { AuthMode } from './components/AuthModal';
-
-import { MainLayout } from './components/layout/MainLayout';
+const QuestionBankList = lazy(() => import('./components/QuestionBankList').then(m => ({ default: m.QuestionBankList })));
 
 const AnalysisDashboard = lazy(() => import('./components/AnalysisDashboard').then(m => ({ default: m.AnalysisDashboard })));
 const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ default: m.HistoryList })));
@@ -58,6 +57,11 @@ function App() {
   const [calendarData, setCalendarData] = useState<CalendarItemVO[]>([]);
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string>('');
+  const [antdLocale, setAntdLocale] = useState<Locale | null>(null);
+
+  useEffect(() => {
+    import('antd/locale/zh_CN').then(m => setAntdLocale(m.default));
+  }, []);
 
   const getPrevAndNextId = (categoryFromUrl?: string) => {
     if (activePracticeQueue.length > 0 && question) {
@@ -228,19 +232,27 @@ function App() {
       loadStatAndAnalysisData();
     } else if (path.startsWith('/profile')) {
       loadProfileData();
+    } else if (path.startsWith('/practice') && questionList.length === 0) {
+      loadQuestionList();
     }
   }, [location.pathname]);
 
   useEffect(() => {
     (async () => {
       const token = getToken();
-      await Promise.all([
-        loadQuestionList(),
-        token ? userApi.getMe().then(res => {
-          if (res.code === 0) setCurrentUser(res.data);
-          else handleLocalClear();
-        }).catch(() => handleLocalClear()) : Promise.resolve()
-      ]);
+      const tasks: Promise<void>[] = [];
+      if (location.pathname.startsWith('/practice')) {
+        tasks.push(loadQuestionList());
+      }
+      if (token) {
+        tasks.push(
+          userApi.getMe().then(res => {
+            if (res.code === 0) setCurrentUser(res.data);
+            else handleLocalClear();
+          }).catch(() => handleLocalClear())
+        );
+      }
+      await Promise.all(tasks);
     })();
   }, []);
 
@@ -522,7 +534,7 @@ function App() {
   };
 
   return (
-    <ConfigProvider locale={zhCN} theme={getAntdTheme(colors, theme === 'dark')}>
+    <ConfigProvider locale={antdLocale ?? undefined} theme={getAntdTheme(colors, theme === 'dark')}>
       <MainLayout
         currentUser={currentUser}
         selectedMenuKey={getSelectedMenuKey()}

@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button, Space, Tag } from 'antd';
 import type { QuestionDetailVO, UserSubmitVO } from '../types';
 import { useColors } from '../context/ThemeContext';
+import ReactMarkdown from 'react-markdown';
+import { streamDeepAnalysis } from '../utils/streamChat';
+import { toast } from '../utils/toast';
+import { Sparkles, Loader2, Check, X } from 'lucide-react';
 
 interface Props {
   question: QuestionDetailVO;
@@ -22,6 +26,30 @@ export const QuestionReview: React.FC<Props> = ({
   const isCorrect = record?.isCorrect === 1;
   const score = record?.score || '0';
   const createTime = record?.createTime || '';
+  const [aiAnalysis, setAiAnalysis] = useState('');
+  const [isAiStreaming, setIsAiStreaming] = useState(false);
+
+  const handleAiAnalysis = useCallback(() => {
+    if (!record) return;
+    setAiAnalysis('');
+    setIsAiStreaming(true);
+
+    const ctrl = streamDeepAnalysis(
+      record.submitId,
+      (token) => setAiAnalysis(prev => prev + token),
+      () => setIsAiStreaming(false),
+      () => {
+        setIsAiStreaming(false);
+        toast.error('AI 分析失败，请重试');
+      },
+      () => setAiAnalysis(''),
+    );
+    window.__aiReviewCtrl = ctrl;
+  }, [record]);
+
+  useEffect(() => {
+    return () => { window.__aiReviewCtrl?.abort(); };
+  }, []);
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -82,11 +110,11 @@ export const QuestionReview: React.FC<Props> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 20, height: 20, borderRadius: 5,
+              width: 20, height: 20, borderRadius: '50%',
               background: isCorrect ? colors.success : colors.error,
-              fontSize: 11, fontWeight: 700, color: '#fff',
+              color: '#fff',
             }}>
-              {isCorrect ? '✓' : '✗'}
+              {isCorrect ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
             </span>
             <span style={{ fontWeight: 600, fontSize: 14, color: isCorrect ? colors.successHover : colors.errorHover }}>
               答题结果：{isCorrect ? '正确' : '错误'}
@@ -102,6 +130,100 @@ export const QuestionReview: React.FC<Props> = ({
         <div style={{ padding: 16, background: colors.gray100, borderRadius: 12, border: `1px solid ${colors.gray200}`, marginBottom: 24 }}>
           <div style={{ fontWeight: 600, color: colors.gray800, marginBottom: 8, fontSize: 14 }}>题目深度解析</div>
           <div style={{ color: colors.gray600, lineHeight: 1.7, fontSize: 14 }}>{record.analysis}</div>
+        </div>
+      )}
+
+      <style>{`
+        .ai-deep-btn {
+          display: inline-flex !important;
+          align-items: center !important;
+          gap: 6px !important;
+          border-radius: 8px !important;
+          font-weight: 600 !important;
+          font-size: 13px !important;
+          background: ${colors.primaryBg} !important;
+          border-color: ${colors.primaryBorder} !important;
+          color: ${colors.primary} !important;
+          transition: all 0.2s !important;
+        }
+        .ai-deep-btn:not(:disabled):hover {
+          background: ${colors.primary} !important;
+          border-color: ${colors.primary} !important;
+          color: #fff !important;
+        }
+      `}</style>
+      {record && (
+        <div style={{ marginBottom: 24 }}>
+          {!isAiStreaming && !aiAnalysis && (
+            <Button
+              className="ai-deep-btn"
+              onClick={handleAiAnalysis}
+              icon={<Sparkles size={14} />}
+            >
+              AI 深度解析
+            </Button>
+          )}
+          {isAiStreaming && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: colors.gray500 }}>
+              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              AI 分析中...
+            </div>
+          )}
+          {aiAnalysis && (
+            <div style={{
+              marginTop: 8, padding: 14, borderRadius: 10, position: 'relative',
+              background: colors.gray50, border: `1px solid ${colors.gray200}`,
+              fontSize: 14, lineHeight: 1.8, color: colors.gray700,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontWeight: 700, color: colors.primary, fontSize: 13 }}>AI 深度解析</span>
+                <span
+                  onClick={() => setAiAnalysis('')}
+                  style={{
+                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 22, height: 22, borderRadius: 6,
+                    color: colors.gray400, transition: 'all 0.15s', userSelect: 'none',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = colors.primaryBg; e.currentTarget.style.color = colors.primary; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = colors.gray400; }}
+                >
+                  <X size={13} />
+                </span>
+              </div>
+              <ReactMarkdown
+                components={{
+                  p({ children }) {
+                    return <p style={{ margin: '4px 0' }}>{children}</p>;
+                  },
+                  ul({ children }) {
+                    return <ul style={{ margin: '4px 0', paddingLeft: 20 }}>{children}</ul>;
+                  },
+                  li({ children }) {
+                    return <li style={{ margin: '2px 0' }}>{children}</li>;
+                  },
+                  strong({ children }) {
+                    return <strong style={{ color: colors.gray900 }}>{children}</strong>;
+                  },
+                  pre({ children }: React.ComponentPropsWithoutRef<'pre'>) {
+                    return <pre style={{ background: colors.gray800, color: '#e4e4e7', borderRadius: 8, padding: 12, overflow: 'auto', fontSize: 13, lineHeight: 1.5, margin: '6px 0' }}>{children}</pre>;
+                  },
+                  code({ className, children, ...props }) {
+                    const isBlock = /language-(\w+)/.exec(className || '');
+                    return isBlock ? (
+                      <code className={className} style={{ fontSize: 13 }} {...props}>{children}</code>
+                    ) : (
+                      <code style={{ background: colors.gray100, padding: '1px 5px', borderRadius: 4, fontSize: 13 }} {...props}>{children}</code>
+                    );
+                  },
+                  a({ href, children }) {
+                    return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: colors.primary }}>{children}</a>;
+                  },
+                }}
+              >
+                {aiAnalysis}
+              </ReactMarkdown>
+            </div>
+          )}
         </div>
       )}
 

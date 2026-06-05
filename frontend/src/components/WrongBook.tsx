@@ -147,7 +147,7 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
                     cursor: 'pointer', position: 'relative', overflow: 'hidden',
                     transition: 'transform 0.25s ease, box-shadow 0.25s ease',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.08)'; }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.1)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
                 >
                   <div style={{ position: 'relative', zIndex: 1 }}>

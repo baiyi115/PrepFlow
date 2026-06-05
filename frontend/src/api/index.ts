@@ -35,6 +35,11 @@ export const submitApi = {
   getWrongsGrouped: () => request<GroupedWrongBookVO[]>('/submits/wrongs/grouped-by-category')
 };
 
+export const suggestionApi = {
+  getWeaknessSuggestion: (category: string) =>
+    request<string>('/suggestions/weakness', { method: 'POST', body: JSON.stringify({ category }) }),
+};
+
 export const adminApi = {
   addQuestion: (data: Record<string, unknown>) => request<number>('/admin/questions', { method: 'POST', body: JSON.stringify(data) }),
   updateQuestion: (data: Record<string, unknown>) => request<boolean>('/admin/questions', { method: 'PUT', body: JSON.stringify(data) }),

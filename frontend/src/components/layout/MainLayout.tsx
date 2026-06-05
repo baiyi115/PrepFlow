@@ -163,7 +163,7 @@ export function MainLayout({
         </div>
       </header>
 
-      <main style={{ padding: '32px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
+      <main style={{ padding: '52px 32px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
         {children}
       </main>
 

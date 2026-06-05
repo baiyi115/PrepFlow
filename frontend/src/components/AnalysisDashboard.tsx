@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button } from 'antd';
 import type { CategoryStatVO, WeaknessAnalysisVO } from '../types';
 import { useColors } from '../context/ThemeContext';
-import { BarChart3 } from 'lucide-react';
+import { suggestionApi } from '../api';
+import { toast } from '../utils/toast';
+import ReactMarkdown from 'react-markdown';
+import { BarChart3, Sparkles, X } from 'lucide-react';
 
 interface Props {
   statData: CategoryStatVO[];
@@ -25,6 +28,25 @@ export const AnalysisDashboard: React.FC<Props> = ({ statData, analysisData, onR
   const totalRate = totalCount > 0 ? ((correctCount * 100) / totalCount).toFixed(1) : '0.0';
   const weaknessCount = analysisData.filter(item => item.level === '薄弱').length;
   const analysisMap = new Map(analysisData.map(item => [item.category, item]));
+  const [aiSuggestions, setAiSuggestions] = useState<Record<string, string | null>>({});
+  const [loadingSuggestion, setLoadingSuggestion] = useState<string | null>(null);
+
+  const handleAiSuggestion = useCallback(async (category: string) => {
+    if (aiSuggestions[category]) return;
+    setLoadingSuggestion(category);
+    try {
+      const res = await suggestionApi.getWeaknessSuggestion(category);
+      if (res.code === 0) {
+        setAiSuggestions(prev => ({ ...prev, [category]: res.data }));
+      } else {
+        toast.error('获取 AI 建议失败');
+      }
+    } catch {
+      toast.error('获取 AI 建议失败');
+    } finally {
+      setLoadingSuggestion(null);
+    }
+  }, [aiSuggestions]);
 
   if (!hasStats) {
     return (
@@ -49,16 +71,16 @@ export const AnalysisDashboard: React.FC<Props> = ({ statData, analysisData, onR
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
         {statTiles.map(s => (
-          <div key={s.label} style={{ padding: '20px 18px', borderRadius: 14, border: `1px solid ${colors.gray200}`, background: colors.gray100 }}>
+          <div key={s.label} style={{ padding: '20px 18px', borderRadius: 14, background: colors.gray100, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <div style={{ fontSize: 12, color: colors.gray500, fontWeight: 500, marginBottom: 4 }}>{s.label}</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12, background: colors.gray100, marginBottom: 28 }}>
-        <div style={{ width: 3, height: 20, borderRadius: 2, background: weaknessCount > 0 ? colors.error : colors.primary, flexShrink: 0 }} />
-        <span style={{ fontSize: 13, color: colors.gray600, lineHeight: 1.5 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12, background: weaknessCount > 0 ? colors.errorBg : colors.successBg, marginBottom: 28 }}>
+        <div style={{ width: 3, height: 24, borderRadius: 2, background: weaknessCount > 0 ? colors.error : colors.success, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, color: colors.gray700, lineHeight: 1.5, fontWeight: 500 }}>
           {weaknessCount > 0
             ? `当前有 ${weaknessCount} 个薄弱分类，建议优先从薄弱项开始复盘`
             : '当前没有明显薄弱分类，继续保持稳定练习'}
@@ -67,7 +89,7 @@ export const AnalysisDashboard: React.FC<Props> = ({ statData, analysisData, onR
 
       <h2 style={{ fontSize: 16, fontWeight: 700, color: colors.gray900, margin: '0 0 16px' }}>各分类能力诊断</h2>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14, alignItems: 'start' }}>
         {statData.map(stat => {
           const rate = Number.parseFloat(stat.correctRate).toFixed(1);
           const analysis = analysisMap.get(stat.category);
@@ -75,7 +97,7 @@ export const AnalysisDashboard: React.FC<Props> = ({ statData, analysisData, onR
           const accent = levelColors[level] || colors.gray500;
 
           return (
-            <div key={stat.category} style={{ borderRadius: 14, border: `1px solid ${colors.gray200}`, padding: 20, background: colors.gray100, transition: 'box-shadow 0.25s ease, transform 0.25s ease' }}
+            <div key={stat.category} style={{ borderRadius: 14, border: `1px solid ${colors.gray200}`, padding: 20, background: `linear-gradient(135deg, ${colors.gray100}, ${colors.gray50})`, transition: 'box-shadow 0.25s ease, transform 0.25s ease' }}
               onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
               onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)'; }}
             >
@@ -97,10 +119,65 @@ export const AnalysisDashboard: React.FC<Props> = ({ statData, analysisData, onR
               <div style={{ fontSize: 13, color: colors.gray600, lineHeight: 1.5, minHeight: 36 }}>
                 {analysis?.suggestion || '继续完成更多题目后生成更准确的建议'}
               </div>
-              {stat.wrongCount > 0 && (
-                <Button size="small" onClick={() => onReviewWrongCategory(stat.category)} style={{ marginTop: 10, borderRadius: 8, fontSize: 13 }}>
-                  复盘错题
-                </Button>
+              <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {stat.wrongCount > 0 && (
+                  <Button size="small" onClick={() => onReviewWrongCategory(stat.category)}>
+                    复盘错题
+                  </Button>
+                )}
+                {!aiSuggestions[stat.category] && (
+                  <Button
+                    size="small"
+                    type="dashed"
+                    onClick={() => handleAiSuggestion(stat.category)}
+                    loading={loadingSuggestion === stat.category}
+                    icon={<Sparkles size={14} />}
+                    style={{ color: colors.primary, borderColor: colors.primaryBorder }}
+                  >
+                    AI 学习建议
+                  </Button>
+                )}
+              </div>
+              {aiSuggestions[stat.category] && (
+                <div style={{
+                  marginTop: 10, padding: 12, borderRadius: 10,
+                  background: colors.primaryBg, border: `1px solid ${colors.primaryBorder}`,
+                  position: 'relative', fontSize: 13, lineHeight: 1.6, color: colors.gray700,
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4, color: colors.primary, fontSize: 12 }}>
+                    AI 学习建议
+                  </div>
+                  <ReactMarkdown
+                    components={{
+                      code({ className, children, ...props }) {
+                        const isBlock = /language-(\w+)/.exec(className || '');
+                        return isBlock ? (
+                          <code className={className} style={{ fontSize: 13 }} {...props}>{children}</code>
+                        ) : (
+                          <code style={{ background: colors.gray100, padding: '1px 5px', borderRadius: 4, fontSize: 13 }} {...props}>{children}</code>
+                        );
+                      },
+                      a({ href, children }) {
+                        return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: colors.primary }}>{children}</a>;
+                      },
+                    }}
+                  >
+                    {aiSuggestions[stat.category]}
+                  </ReactMarkdown>
+                  <span
+                    onClick={() => setAiSuggestions(prev => ({ ...prev, [stat.category]: null }))}
+                    style={{
+                      position: 'absolute', top: 8, right: 8, cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 22, height: 22, borderRadius: 6,
+                      color: colors.gray400, transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = colors.primaryBg; e.currentTarget.style.color = colors.primary; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = colors.gray400; }}
+                  >
+                    <X size={13} />
+                  </span>
+                </div>
               )}
             </div>
           );
