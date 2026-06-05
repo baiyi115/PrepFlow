@@ -136,7 +136,6 @@ public class LearningAnalyticsService {
 	}
 
 	public UserProfileVO getUserProfile() {
-		// TODO: 1. 调用 userService.getLoginUser() 获取当前用户基础资料 UserVO
 		Long userId= StpUtil.getLoginIdAsLong();
 		UserProfileVO profileVO = new UserProfileVO();
 
@@ -156,7 +155,7 @@ public class LearningAnalyticsService {
 						.divide(BigDecimal.valueOf(allSubmits.size()),2,RoundingMode.HALF_UP);
 		profileVO.setCorrectRate(rate);
 
-		profileVO.setRecentSubmits(allSubmits.subList(0,Math.min(5,allSubmits.size())));
+		profileVO.setRecentSubmits(allSubmits.subList(0,Math.min(20,allSubmits.size())));
 
 		QueryWrapper<UserWrongBook> qw = new QueryWrapper<>();
 		qw.eq("user_id",userId).eq("status",0);
