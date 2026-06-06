@@ -1,10 +1,10 @@
 # Interview Platform
 
-一个面向 Java 后端面试备考的在线刷题与能力评估平台。项目功能包含题库练习、即时判分、答题历史、错题复盘、能力分析、个人主页和后台题库管理。
+一个面向 Java 后端面试备考的在线刷题与能力评估平台。项目功能包含题库练习、即时判分、答题历史、错题复盘、能力分析、AI 辅助解析、个人主页和后台题库管理。
 
 ## 项目简介
 
-平台以选择题练习为主。用户可以按知识分类浏览题目，提交答案后查看判分结果和题目解析。系统会记录答题历史、维护错题本，并根据答题数据生成分类能力评估。
+平台以选择题练习为主。用户可以按知识分类浏览题目，提交答案后查看判分结果和题目解析。系统会记录答题历史、维护错题本，并根据答题数据生成分类能力评估和 AI 学习建议。
 
 管理员可以在后台维护题库、编辑题目、查看用户列表并管理用户状态。
 
@@ -16,6 +16,7 @@
 - 答题历史查看和单次提交回顾。
 - 错题本复盘和推荐复习时间控制。
 - 分类正确率统计和薄弱项分析。
+- AI 流式问答、题目深度解析和薄弱项学习建议。
 - 个人主页、练习日历、头像上传和资料编辑。
 - 管理员用户管理和题库管理。
 
@@ -31,6 +32,8 @@
 - Redis
 - Sa-Token
 - Caffeine
+- Spring AI
+- Server-Sent Events
 
 **前端**
 
@@ -97,6 +100,9 @@ src/main/resources/application.yml
 | `REDIS_PORT` | `6379` | Redis 端口 |
 | `REDIS_DATABASE` | `0` | Redis 数据库 |
 | `REDIS_PASSWORD` | 无 | Redis 密码，必须配置 |
+| `AI_BASE_URL` | 无 | 大模型 OpenAI 兼容接口地址，必须配置 |
+| `AI_API_KEY` | 无 | 大模型 API Key，必须配置 |
+| `AI_MODEL` | 无 | 大模型名称，必须配置 |
 | `MAX_FILE_SIZE` | `5MB` | 上传文件大小限制 |
 | `MAX_REQUEST_SIZE` | `5MB` | 上传请求大小限制 |
 | `UPLOAD_PATH` | 无 | 上传基础目录，必须配置；头像保存到该目录下的 `uploads/` 子目录 |
@@ -147,11 +153,18 @@ http://localhost:5173
 ```
 本地开发需要配置环境变量，例如：
 
-```text
-MYSQL_PASSWORD=你的MySQL密码;REDIS_PASSWORD=你的Redis密码;UPLOAD_PATH=.
+```powershell
+$env:MYSQL_PASSWORD="your-mysql-password"
+$env:REDIS_PASSWORD="your-redis-password"
+$env:UPLOAD_PATH="."
+$env:AI_BASE_URL="your-openai-compatible-base-url"
+$env:AI_API_KEY="your-llm-api-key"
+$env:AI_MODEL="your-llm-model-name"
 ```
 
 `UPLOAD_PATH` 表示项目目录或部署目录。后端会自动使用其下的 `uploads/` 子目录保存头像。
+
+AI 配置使用 OpenAI 兼容接口格式，可对接兼容该协议的大模型服务。
 
 ## 常用命令
 
@@ -224,6 +237,9 @@ export REDIS_PORT=6379
 export REDIS_DATABASE=0
 export REDIS_PASSWORD='your-redis-password'
 export UPLOAD_PATH='/data/interview-platform'
+export AI_MODEL='llm-name'
+export AI_BASE_URL='your-llm-url'
+export AI_API_KEY='your-llm-apikey'
 ```
 
 ### 4. 启动后端
@@ -287,6 +303,14 @@ server {
 | `GET` | `/api/submits/statistics/category` | 分类统计 |
 | `GET` | `/api/submits/analysis/weakness` | 薄弱项分析 |
 | `GET` | `/api/submits/calendar` | 练习日历 |
+
+**AI**
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/chat/stream` | AI 流式问答 |
+| `POST` | `/api/chat/analysis/deep` | AI 题目深度解析 |
+| `POST` | `/api/suggestions/weakness` | AI 薄弱项学习建议 |
 
 **管理员**
 
