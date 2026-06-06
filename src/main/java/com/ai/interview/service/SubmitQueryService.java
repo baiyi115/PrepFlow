@@ -1,10 +1,10 @@
 package com.ai.interview.service;
 
 import com.ai.interview.common.ErrorCode;
+import com.ai.interview.entity.Question;
 import com.ai.interview.entity.UserSubmit;
 import com.ai.interview.exception.BusinessException;
 import com.ai.interview.mapper.UserSubmitMapper;
-import com.ai.interview.vo.QuestionDetailVO;
 import com.ai.interview.vo.UserSubmitVO;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.annotation.Resource;
@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class SubmitQueryService {
@@ -32,15 +33,20 @@ public class SubmitQueryService {
 		queryWrapper.orderByDesc("create_time");
 
 		List<UserSubmit> userSubmits = userSubmitMapper.selectList(queryWrapper);
+		List<Long> questionIds = userSubmits.stream()
+				.map(UserSubmit::getQuestionId)
+				.distinct()
+				.toList();
+		Map<Long, Question> questionMap = questionService.getQuestionMap(questionIds);
 		List<UserSubmitVO> userSubmitVOList = new ArrayList<>();
 		for (UserSubmit userSubmit : userSubmits) {
-			UserSubmitVO userSubmitVO = convertToUserSubmitVO(userSubmit);
+			UserSubmitVO userSubmitVO = convertToUserSubmitVO(userSubmit, questionMap.get(userSubmit.getQuestionId()));
 			userSubmitVOList.add(userSubmitVO);
 		}
 		return userSubmitVOList;
 	}
 
-	private UserSubmitVO convertToUserSubmitVO(UserSubmit userSubmit) {
+	private UserSubmitVO convertToUserSubmitVO(UserSubmit userSubmit, Question question) {
 		UserSubmitVO userSubmitVO = new UserSubmitVO();
 		userSubmitVO.setSubmitId(userSubmit.getId());
 		userSubmitVO.setQuestionId(userSubmit.getQuestionId());
@@ -51,13 +57,12 @@ public class SubmitQueryService {
 		userSubmitVO.setScore(userSubmit.getScore());
 		userSubmitVO.setSubmitStatus(userSubmit.getSubmitStatus());
 		userSubmitVO.setCreateTime(userSubmit.getCreateTime() != null ? userSubmit.getCreateTime().toString() : null);
-		try{
-			QuestionDetailVO detial = questionService.getQuestionDetail(userSubmit.getQuestionId());
-			userSubmitVO.setQuestionTitle(detial.getTitle());
-			userSubmitVO.setCategory((detial.getCategory()));
-			userSubmitVO.setDifficulty(detial.getDifficulty());
-			userSubmitVO.setAnalysis(detial.getAnalysis());
-		}catch (Exception e){
+		if (question != null) {
+			userSubmitVO.setQuestionTitle(question.getTitle());
+			userSubmitVO.setCategory(question.getCategory());
+			userSubmitVO.setAnalysis(question.getAnalysis());
+			userSubmitVO.setDifficulty(question.getDifficulty());
+		} else {
 			userSubmitVO.setQuestionTitle("题目已下线");
 		}
 

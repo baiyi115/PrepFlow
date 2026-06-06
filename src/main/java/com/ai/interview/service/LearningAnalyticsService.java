@@ -8,7 +8,6 @@ import com.ai.interview.entity.User;
 import com.ai.interview.entity.UserSubmit;
 import com.ai.interview.entity.UserWrongBook;
 import com.ai.interview.exception.BusinessException;
-import com.ai.interview.mapper.QuestionMapper;
 import com.ai.interview.mapper.UserSubmitMapper;
 import com.ai.interview.mapper.UserWrongBookMapper;
 import com.ai.interview.vo.CalendarItemVO;
@@ -34,9 +33,6 @@ public class LearningAnalyticsService {
 	private UserSubmitMapper userSubmitMapper;
 
 	@Resource
-	private QuestionMapper questionMapper;
-
-	@Resource
 	private UserWrongBookMapper userWrongBookMapper;
 
 	@Resource
@@ -47,6 +43,9 @@ public class LearningAnalyticsService {
 
 	@Resource
 	private SubmitService submitService;
+
+	@Resource
+	private QuestionService questionService;
 
 	public List<CalendarItemVO> getCalendarData(Long userId, int days) {
 		if (userId == null || userId <= 0) {
@@ -63,10 +62,14 @@ public class LearningAnalyticsService {
 		QueryWrapper<UserSubmit> queryWrapper = new QueryWrapper<>();
 		queryWrapper.eq("user_id", userId);
 		List<UserSubmit> userSubmits = userSubmitMapper.selectList(queryWrapper);
-
+		List<Long> questionIds = userSubmits.stream()
+				.map(UserSubmit::getQuestionId)
+				.distinct()
+				.toList();
+		Map<Long, Question> questionMap = questionService.getQuestionMap(questionIds);
 		Map<String, CategoryStatVO> categoryStatMap = new HashMap<>();
 		for (UserSubmit userSubmit : userSubmits) {
-			Question question = questionMapper.selectById(userSubmit.getQuestionId());
+			Question question = questionMap.get(userSubmit.getQuestionId());
 			if (question == null) {
 				continue;
 			}
@@ -102,8 +105,10 @@ public class LearningAnalyticsService {
 		if (userId == null || userId <= 0) {
 			throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
 		}
+		return analyzeWeakness(getCategoryStatistics(userId));
+	}
 
-		List<CategoryStatVO> categoryStatList = getCategoryStatistics(userId);
+	public List<WeaknessAnalysisVO> analyzeWeakness(List<CategoryStatVO> categoryStatList) {
 		List<WeaknessAnalysisVO> weaknessAnalysisList = new ArrayList<>();
 
 		for (CategoryStatVO categoryStatVO : categoryStatList) {
@@ -161,8 +166,9 @@ public class LearningAnalyticsService {
 		qw.eq("user_id",userId).eq("status",0);
 		profileVO.setActiveWrongCount(Math.toIntExact(userWrongBookMapper.selectCount(qw)));
 
-		profileVO.setCategoryStats(getCategoryStatistics(userId));
-		profileVO.setWeaknesses(analyzeWeakness(userId));
+		List<CategoryStatVO> categoryStats = getCategoryStatistics(userId);
+		profileVO.setCategoryStats(categoryStats);
+		profileVO.setWeaknesses(analyzeWeakness(categoryStats));
 
 		return profileVO;
 	}

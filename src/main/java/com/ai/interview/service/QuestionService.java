@@ -19,6 +19,9 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collection;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class QuestionService {
@@ -99,6 +102,14 @@ public class QuestionService {
 		}
 
 		return questionDetailVO;
+	}
+
+	public Map<Long, Question> getQuestionMap(Collection<Long> ids) {
+		if (ids == null || ids.isEmpty()) {
+			return Map.of();
+		}
+		List<Question> questions = questionMapper.selectBatchIds(ids);
+		return questions.stream().collect(Collectors.toMap(Question::getId, q -> q));
 	}
 
 	public List<QuestionVO> listQuestions() {

@@ -39,9 +39,20 @@ public class WrongBookService {
 		queryWrapper.orderByAsc("next_review_time");
 		List<UserWrongBook> wrongBooks = userWrongBookMapper.selectList(queryWrapper);
 
+		List<Long> questionIds = wrongBooks.stream()
+				.map(UserWrongBook::getQuestionId)
+				.collect(Collectors.toList());
+		Map<Long, Question> questionMap;
+		if (questionIds.isEmpty()) {
+			questionMap = Map.of();
+		} else {
+			questionMap = questionMapper.selectBatchIds(questionIds)
+					.stream().collect(Collectors.toMap(Question::getId, q -> q));
+		}
+
 		List<UserWrongBookVO> wrongBookVOList = new ArrayList<>();
 		for (UserWrongBook wrongBook : wrongBooks) {
-			Question question = questionMapper.selectById(wrongBook.getQuestionId());
+			Question question = questionMap.get(wrongBook.getQuestionId());
 			if (question == null) {
 				continue;
 			}
