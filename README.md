@@ -32,7 +32,6 @@ PrepFlow平台以选择题练习为主。用户可以按知识分类浏览题目
 ## 技术栈
 
 Backend：Java 17，Spring Boot 3，Maven，MyBatis-Plus，MySQL，Redis，Sa-Token，Caffeine，Spring AI，Server-Sent Events
-
 Frontend：React 19，TypeScript，Vite，Ant Design
 
 ## 项目结构
