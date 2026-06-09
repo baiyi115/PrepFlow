@@ -1,10 +1,19 @@
-# Interview Platform
+<h1 align="center">PrepFlow</h1>
+
+<p align="center">
+  <img alt="Java" src="https://img.shields.io/badge/Java-17-ED8B00?style=flat-square&logo=openjdk&logoColor=white">
+  <img alt="Spring Boot" src="https://img.shields.io/badge/Spring_Boot-3-6DB33F?style=flat-square&logo=springboot&logoColor=white">
+  <img alt="MySQL" src="https://img.shields.io/badge/MySQL-8-4479A1?style=flat-square&logo=mysql&logoColor=white">
+  <img alt="Redis" src="https://img.shields.io/badge/Redis-6-DC382D?style=flat-square&logo=redis&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=111111">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white">
+</p>
 
 一个面向 Java 后端面试备考的在线刷题与能力评估平台。项目功能包含题库练习、即时判分、答题历史、错题复盘、能力分析、AI 辅助解析、个人主页和后台题库管理。
 
 ## 项目简介
 
-平台以选择题练习为主。用户可以按知识分类浏览题目，提交答案后查看判分结果和题目解析。系统会记录答题历史、维护错题本，并根据答题数据生成分类能力评估和 AI 学习建议。
+PrepFlow平台以选择题练习为主。用户可以按知识分类浏览题目，提交答案后查看判分结果和题目解析。系统会记录答题历史、维护错题本，并根据答题数据生成分类能力评估和 AI 学习建议。
 
 管理员可以在后台维护题库、编辑题目、查看用户列表并管理用户状态。
 
@@ -22,25 +31,9 @@
 
 ## 技术栈
 
-**后端**
+Backend：Java 17，Spring Boot 3，Maven，MyBatis-Plus，MySQL，Redis，Sa-Token，Caffeine，Spring AI，Server-Sent Events
 
-- Java 17
-- Spring Boot 3
-- Maven
-- MyBatis-Plus
-- MySQL
-- Redis
-- Sa-Token
-- Caffeine
-- Spring AI
-- Server-Sent Events
-
-**前端**
-
-- React 19
-- TypeScript
-- Vite
-- Ant Design
+Frontend：React 19，TypeScript，Vite，Ant Design
 
 ## 项目结构
 
