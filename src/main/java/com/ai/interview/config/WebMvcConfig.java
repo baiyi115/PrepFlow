@@ -1,10 +1,7 @@
 package com.ai.interview.config;
 
-import com.ai.interview.exception.RateLimitInterceptor;
-import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -15,9 +12,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Value("${file.upload-path}")
     private String uploadPath;
-
-    @Resource
-    private RateLimitInterceptor rateLimitInterceptor;
 
     private File getAvatarDir() {
         File baseDir = new File(uploadPath).getAbsoluteFile();
@@ -40,9 +34,4 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addResourceLocations(resourceLocation);
     }
 
-    @Override
-    public void addInterceptors(InterceptorRegistry registry){
-        registry.addInterceptor(rateLimitInterceptor)
-                .addPathPatterns("/api/**");
-    }
 }

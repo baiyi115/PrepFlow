@@ -32,6 +32,14 @@ public class UserService {
 	@Value("${file.upload-path}")
 	private String uploadPath;
 
+	private File getAvatarDir() {
+		File baseDir = new File(uploadPath).getAbsoluteFile();
+		if (!"uploads".equalsIgnoreCase(baseDir.getName())) {
+			return new File(baseDir, "uploads").getAbsoluteFile();
+		}
+		return baseDir;
+	}
+
 	public LoginVO login(LoginRequest request) {
 		if (request == null) {
 			throw new BusinessException(ErrorCode.NULL_ERROR, "请求为空");
@@ -177,9 +185,9 @@ public class UserService {
 		}
 
 		String newFileName = UUID.randomUUID().toString() + suffix;
-		File destDir = new File(uploadPath);
-		if (!destDir.exists()) {
-			destDir.mkdirs();
+		File destDir = getAvatarDir();
+		if (!destDir.exists() && !destDir.mkdirs()) {
+			throw new BusinessException(ErrorCode.SYSTEM_ERROR, "创建上传目录失败");
 		}
 		try {
 			file.transferTo(new File(destDir, newFileName));

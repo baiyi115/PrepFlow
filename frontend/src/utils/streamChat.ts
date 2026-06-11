@@ -1,3 +1,5 @@
+import { getToken } from './request';
+
 export function streamChat(
   message: string,
   onToken: (token: string) => void,
@@ -9,7 +11,7 @@ export function streamChat(
   const controller = new AbortController();
 
   async function attempt(retryCount: number) {
-    const token = localStorage.getItem('satoken');
+    const token = getToken();
     try {
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -65,7 +67,7 @@ export function streamDeepAnalysis(
   const controller = new AbortController();
 
   async function attempt(retryCount: number) {
-    const token = localStorage.getItem('satoken');
+    const token = getToken();
     try {
       const response = await fetch('/api/chat/analysis/deep', {
         method: 'POST',

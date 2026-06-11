@@ -13,10 +13,12 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.Disposable;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class AIChatService {
@@ -45,24 +47,41 @@ public class AIChatService {
             emitter.completeWithError(new IllegalArgumentException("输入不能为空"));
             return emitter;
         }
+        if (userMessage.length() > 4000) {
+            emitter.completeWithError(new IllegalArgumentException("输入内容过长"));
+            return emitter;
+        }
 
-        chatClient.prompt()
+        AtomicReference<Disposable> disposableRef = new AtomicReference<>();
+        Disposable disposable = chatClient.prompt()
                 .system("你是一位资深的 IT 面试教练，请详细解答用户的问题。回答要深入浅出，结合实际代码示例。")
                 .user(userMessage)
                 .stream()
                 .content()
+                .subscribeOn(aiScheduler)
                 .publishOn(aiScheduler)
                 .subscribe(
                         token -> {
                             try {
                                 emitter.send(token);
                             } catch (Exception e) {
+                                Disposable current = disposableRef.get();
+                                if (current != null) {
+                                    current.dispose();
+                                }
                                 emitter.completeWithError(e);
                             }
                         },
                         emitter::completeWithError,
                         emitter::complete
                 );
+        disposableRef.set(disposable);
+        emitter.onCompletion(disposable::dispose);
+        emitter.onTimeout(() -> {
+            disposable.dispose();
+            emitter.complete();
+        });
+        emitter.onError(error -> disposable.dispose());
 
         return emitter;
     }
