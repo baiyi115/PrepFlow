@@ -54,6 +54,7 @@ app.err
 .local-notes/
 .opencode/
 .superpowers/
+init-sql/
 frontend/.playwright-mcp/
 frontend/*.snapshot.md
 .env

@@ -26,11 +26,11 @@ public class CaffeineConfig {
 	@Bean("aiTaskExecutor")
 	public ThreadPoolTaskExecutor aiTaskExecutor() {
 		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setCorePoolSize(2);
-		executor.setMaxPoolSize(4);
-		executor.setQueueCapacity(100);
+		executor.setCorePoolSize(4);
+		executor.setMaxPoolSize(20);
+		executor.setQueueCapacity(20);
 		executor.setThreadNamePrefix("ai-worker-");
-		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
 		executor.setWaitForTasksToCompleteOnShutdown(true);
 		executor.setAwaitTerminationSeconds(30);
 		executor.initialize();

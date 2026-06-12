@@ -5,6 +5,8 @@ import com.ai.interview.common.BaseResponse;
 import com.ai.interview.common.ErrorCode;
 import com.ai.interview.common.ResultUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -20,6 +22,13 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(NotLoginException.class)
 	public BaseResponse<?> notLoginExceptionHandler(NotLoginException e) {
 		return ResultUtils.error(ErrorCode.NOT_LOGIN_ERROR);
+	}
+
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public BaseResponse<?> validationExceptionHandler(MethodArgumentNotValidException e) {
+		FieldError fieldError = e.getBindingResult().getFieldError();
+		String message = fieldError != null ? fieldError.getDefaultMessage() : "参数校验失败";
+		return ResultUtils.error(ErrorCode.PARAMS_ERROR.getCode(), message);
 	}
 
 	@ExceptionHandler(org.springframework.dao.DuplicateKeyException.class)

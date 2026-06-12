@@ -184,6 +184,61 @@ public class AdminQuestionService {
 	}
 
 	/**
+	 * 管理员查询题目列表，支持按分类、难度、类型筛选，返回完整题目信息（含答案和选项）。
+	 */
+	public List<QuestionDetailVO> listQuestions(String category, Integer difficulty, Integer questionType) {
+		userService.checkIsAdmin();
+
+		QueryWrapper<Question> queryWrapper = new QueryWrapper<>();
+
+		if (category != null && !category.trim().isEmpty()) {
+			queryWrapper.eq("category", category.trim());
+		}
+		if (difficulty != null) {
+			queryWrapper.eq("difficulty", difficulty);
+		}
+		if (questionType != null) {
+			queryWrapper.eq("question_type", questionType);
+		}
+
+		queryWrapper.orderByDesc("create_time");
+
+		List<Question> questions = questionMapper.selectList(queryWrapper);
+		List<QuestionDetailVO> result = new ArrayList<>();
+
+		for (Question question : questions) {
+			QueryWrapper<QuestionOption> optionWrapper = new QueryWrapper<>();
+			optionWrapper.eq("question_id", question.getId());
+			optionWrapper.orderByAsc("sort_order");
+
+			List<QuestionOption> questionOptions = questionOptionMapper.selectList(optionWrapper);
+			List<QuestionOptionVO> optionVOList = new ArrayList<>();
+			for (QuestionOption option : questionOptions) {
+				QuestionOptionVO optionVO = new QuestionOptionVO();
+				optionVO.setOptionLabel(option.getOptionLabel());
+				optionVO.setOptionContent(option.getOptionContent());
+				optionVO.setSortOrder(option.getSortOrder());
+				optionVOList.add(optionVO);
+			}
+
+			QuestionDetailVO vo = new QuestionDetailVO();
+			vo.setId(question.getId());
+			vo.setTitle(question.getTitle());
+			vo.setContent(question.getContent());
+			vo.setCategory(question.getCategory());
+			vo.setDifficulty(question.getDifficulty());
+			vo.setQuestionType(question.getQuestionType());
+			vo.setCorrectOptionLabel(question.getCorrectOptionLabel());
+			vo.setAnalysis(question.getAnalysis());
+			vo.setOptions(optionVOList);
+
+			result.add(vo);
+		}
+
+		return result;
+	}
+
+	/**
 	 * 管理员修改题目与选项 (更新记录，双删题目多级缓存)
 	 */
 	@Transactional(rollbackFor = Exception.class)

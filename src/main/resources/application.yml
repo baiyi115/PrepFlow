@@ -41,4 +41,4 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 file:
-  upload-path: ${UPLOAD_PATH}
+  upload-path: ${UPLOAD_PATH:uploads}

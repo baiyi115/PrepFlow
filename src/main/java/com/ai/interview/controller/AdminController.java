@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -49,6 +50,15 @@ public class AdminController {
 	@GetMapping("/api/admin/questions/{questionId}")
 	public BaseResponse<QuestionDetailVO> getQuestionDetail(@PathVariable Long questionId) {
 		return ResultUtils.success(adminQuestionService.getQuestionDetail(questionId));
+	}
+
+	@GetMapping("/api/admin/questions")
+	public BaseResponse<List<QuestionDetailVO>> listQuestions(
+			@RequestParam(required = false) String category,
+			@RequestParam(required = false) Integer difficulty,
+			@RequestParam(required = false) Integer questionType
+	) {
+		return ResultUtils.success(adminQuestionService.listQuestions(category, difficulty, questionType));
 	}
 
 	@GetMapping("/api/admin/users")

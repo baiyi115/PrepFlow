@@ -11,6 +11,7 @@ import com.ai.interview.vo.LoginVO;
 import com.ai.interview.vo.UserProfileVO;
 import com.ai.interview.vo.UserVO;
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -29,12 +30,12 @@ public class UserController {
 	private LearningAnalyticsService learningAnalyticsService;
 
 	@PostMapping("/api/users/login")
-	public BaseResponse<LoginVO> login(@RequestBody LoginRequest request) {
+	public BaseResponse<LoginVO> login(@Valid @RequestBody LoginRequest request) {
 		return ResultUtils.success(userService.login(request));
 	}
 
 	@PostMapping("/api/users/register")
-	public BaseResponse<Long> register(@RequestBody RegisterRequest request) {
+	public BaseResponse<Long> register(@Valid @RequestBody RegisterRequest request) {
 		return ResultUtils.success(userService.register(request));
 	}
 

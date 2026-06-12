@@ -11,6 +11,7 @@ import com.ai.interview.vo.GroupedWrongBookVO;
 import com.ai.interview.vo.UserWrongBookVO;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.annotation.Resource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -85,7 +86,6 @@ public class WrongBookService {
 			groupVO.setList(list);
 			groupVO.setTotalCount(list.size());
 			
-			// 过滤出当前时间已经到期、需要温习的错题量
 			int dueCount = (int) list.stream()
 					.filter(item -> item.getNextReviewTime() == null || !now.isBefore(item.getNextReviewTime()))
 					.count();
@@ -108,9 +108,13 @@ public class WrongBookService {
 				newRecord.setUserId(userId);
 				newRecord.setQuestionId(questionId);
 				newRecord.setReviewStage(1);
-				newRecord.setNextReviewTime(LocalDateTime.now().plusDays(1)); // 一天后复习
+				newRecord.setNextReviewTime(LocalDateTime.now().plusDays(1));
 				newRecord.setStatus(0);
-				userWrongBookMapper.insert(newRecord);
+				try {
+					userWrongBookMapper.insert(newRecord);
+				} catch (DuplicateKeyException e) {
+					resetWrongBookToFirstStage(userId, questionId);
+				}
 			} else {
 				exitsRecord.setReviewStage(1);
 				exitsRecord.setNextReviewTime(LocalDateTime.now().plusDays(1));
@@ -123,7 +127,6 @@ public class WrongBookService {
 			}
 			LocalDateTime now = LocalDateTime.now();
 			LocalDateTime nextReviewTime = exitsRecord.getNextReviewTime();
-			// 未到推荐复习时间时，答对不推进阶段，避免短时间连刷导致错题提前移出。
 			if (nextReviewTime != null && now.isBefore(nextReviewTime)) {
 				return;
 			}
@@ -144,5 +147,19 @@ public class WrongBookService {
 			}
 			userWrongBookMapper.updateById(exitsRecord);
 		}
+	}
+
+	private void resetWrongBookToFirstStage(Long userId, Long questionId) {
+		QueryWrapper<UserWrongBook> queryWrapper = new QueryWrapper<>();
+		queryWrapper.eq("user_id", userId);
+		queryWrapper.eq("question_id", questionId);
+		UserWrongBook record = userWrongBookMapper.selectOne(queryWrapper);
+		if (record == null) {
+			return;
+		}
+		record.setReviewStage(1);
+		record.setNextReviewTime(LocalDateTime.now().plusDays(1));
+		record.setStatus(0);
+		userWrongBookMapper.updateById(record);
 	}
 }
