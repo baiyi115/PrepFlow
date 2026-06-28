@@ -10,7 +10,6 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -28,44 +27,24 @@ public class SubmitQueryService {
 			throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
 		}
 
+		List<UserSubmit> userSubmits = listUserSubmits(userId);
+		Map<Long, Question> questionMap = questionService.getQuestionMap(questionIdsOf(userSubmits));
+		return userSubmits.stream()
+				.map(userSubmit -> SubmitAssembler.toUserSubmitVO(userSubmit, questionMap.get(userSubmit.getQuestionId())))
+				.toList();
+	}
+
+	private List<UserSubmit> listUserSubmits(Long userId) {
 		QueryWrapper<UserSubmit> queryWrapper = new QueryWrapper<>();
 		queryWrapper.eq("user_id", userId);
 		queryWrapper.orderByDesc("create_time");
+		return userSubmitMapper.selectList(queryWrapper);
+	}
 
-		List<UserSubmit> userSubmits = userSubmitMapper.selectList(queryWrapper);
-		List<Long> questionIds = userSubmits.stream()
+	private List<Long> questionIdsOf(List<UserSubmit> userSubmits) {
+		return userSubmits.stream()
 				.map(UserSubmit::getQuestionId)
 				.distinct()
 				.toList();
-		Map<Long, Question> questionMap = questionService.getQuestionMap(questionIds);
-		List<UserSubmitVO> userSubmitVOList = new ArrayList<>();
-		for (UserSubmit userSubmit : userSubmits) {
-			UserSubmitVO userSubmitVO = convertToUserSubmitVO(userSubmit, questionMap.get(userSubmit.getQuestionId()));
-			userSubmitVOList.add(userSubmitVO);
-		}
-		return userSubmitVOList;
-	}
-
-	private UserSubmitVO convertToUserSubmitVO(UserSubmit userSubmit, Question question) {
-		UserSubmitVO userSubmitVO = new UserSubmitVO();
-		userSubmitVO.setSubmitId(userSubmit.getId());
-		userSubmitVO.setQuestionId(userSubmit.getQuestionId());
-		userSubmitVO.setQuestionType(userSubmit.getQuestionType());
-		userSubmitVO.setSelectedOptionLabel(userSubmit.getSelectedOptionLabel());
-		userSubmitVO.setCorrectOptionLabel(userSubmit.getCorrectOptionLabel());
-		userSubmitVO.setIsCorrect(userSubmit.getIsCorrect());
-		userSubmitVO.setScore(userSubmit.getScore());
-		userSubmitVO.setSubmitStatus(userSubmit.getSubmitStatus());
-		userSubmitVO.setCreateTime(userSubmit.getCreateTime() != null ? userSubmit.getCreateTime().toString() : null);
-		if (question != null) {
-			userSubmitVO.setQuestionTitle(question.getTitle());
-			userSubmitVO.setCategory(question.getCategory());
-			userSubmitVO.setAnalysis(question.getAnalysis());
-			userSubmitVO.setDifficulty(question.getDifficulty());
-		} else {
-			userSubmitVO.setQuestionTitle("题目已下线");
-		}
-
-		return userSubmitVO;
 	}
 }

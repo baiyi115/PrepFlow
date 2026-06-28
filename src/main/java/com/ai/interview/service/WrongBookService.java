@@ -15,13 +15,15 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
 public class WrongBookService {
+
+	private static final int ACTIVE_STATUS = 0;
 
 	@Resource
 	private UserWrongBookMapper userWrongBookMapper;
@@ -34,132 +36,85 @@ public class WrongBookService {
 			throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户ID不合法");
 		}
 
-		QueryWrapper<UserWrongBook> queryWrapper = new QueryWrapper<>();
-		queryWrapper.eq("user_id", userId);
-		queryWrapper.eq("status", 0);
-		queryWrapper.orderByAsc("next_review_time");
-		List<UserWrongBook> wrongBooks = userWrongBookMapper.selectList(queryWrapper);
-
-		List<Long> questionIds = wrongBooks.stream()
-				.map(UserWrongBook::getQuestionId)
-				.collect(Collectors.toList());
-		Map<Long, Question> questionMap;
-		if (questionIds.isEmpty()) {
-			questionMap = Map.of();
-		} else {
-			questionMap = questionMapper.selectBatchIds(questionIds)
-					.stream().collect(Collectors.toMap(Question::getId, q -> q));
-		}
-
-		List<UserWrongBookVO> wrongBookVOList = new ArrayList<>();
-		for (UserWrongBook wrongBook : wrongBooks) {
-			Question question = questionMap.get(wrongBook.getQuestionId());
-			if (question == null) {
-				continue;
-			}
-			UserWrongBookVO vo = new UserWrongBookVO();
-			vo.setId(wrongBook.getId());
-			vo.setQuestionId(wrongBook.getQuestionId());
-			vo.setTitle(question.getTitle());
-			vo.setCategory(question.getCategory());
-			vo.setDifficulty(question.getDifficulty());
-			vo.setReviewStage(wrongBook.getReviewStage());
-			vo.setNextReviewTime(wrongBook.getNextReviewTime());
-			wrongBookVOList.add(vo);
-		}
-		return wrongBookVOList;
+		List<UserWrongBook> wrongBooks = listActiveWrongBooks(userId);
+		Map<Long, Question> questionMap = getQuestionMap(wrongBooks);
+		return wrongBooks.stream()
+				.map(wrongBook -> toWrongBookVO(wrongBook, questionMap))
+				.filter(Objects::nonNull)
+				.toList();
 	}
 
 	public List<GroupedWrongBookVO> getWrongSubmitsGrouped(Long userId) {
-		List<UserWrongBookVO> wrongList = getWrongSubmits(userId);
-
-		Map<String, List<UserWrongBookVO>> groupedMap = wrongList.stream()
+		Map<String, List<UserWrongBookVO>> groupedMap = getWrongSubmits(userId).stream()
 				.collect(Collectors.groupingBy(UserWrongBookVO::getCategory));
-
-		List<GroupedWrongBookVO> result = new ArrayList<>();
 		LocalDateTime now = LocalDateTime.now();
-		for (Map.Entry<String, List<UserWrongBookVO>> entry : groupedMap.entrySet()) {
-			GroupedWrongBookVO groupVO = new GroupedWrongBookVO();
-			groupVO.setCategory(entry.getKey());
-			
-			List<UserWrongBookVO> list = entry.getValue();
-			groupVO.setList(list);
-			groupVO.setTotalCount(list.size());
-			
-			int dueCount = (int) list.stream()
-					.filter(item -> item.getNextReviewTime() == null || !now.isBefore(item.getNextReviewTime()))
-					.count();
-			groupVO.setDueCount(dueCount);
-			
-			result.add(groupVO);
-		}
-		return result;
+		return groupedMap.entrySet().stream()
+				.map(entry -> WrongBookAssembler.toGroupedVO(entry.getKey(), entry.getValue(), now))
+				.toList();
 	}
 
 	public void updateWrongBookStatus(Long userId, Long questionId, Integer isCorrect) {
-		QueryWrapper<UserWrongBook> queryWrapper = new QueryWrapper<>();
-		queryWrapper.eq("user_id", userId);
-		queryWrapper.eq("question_id", questionId);
-		UserWrongBook exitsRecord = userWrongBookMapper.selectOne(queryWrapper);
+		UserWrongBook record = findWrongBook(userId, questionId);
+		LocalDateTime now = LocalDateTime.now();
 
 		if (Integer.valueOf(BusinessConstant.ANSWER_WRONG).equals(isCorrect)) {
-			if (exitsRecord == null) {
-				UserWrongBook newRecord = new UserWrongBook();
-				newRecord.setUserId(userId);
-				newRecord.setQuestionId(questionId);
-				newRecord.setReviewStage(1);
-				newRecord.setNextReviewTime(LocalDateTime.now().plusDays(1));
-				newRecord.setStatus(0);
-				try {
-					userWrongBookMapper.insert(newRecord);
-				} catch (DuplicateKeyException e) {
-					resetWrongBookToFirstStage(userId, questionId);
-				}
-			} else {
-				exitsRecord.setReviewStage(1);
-				exitsRecord.setNextReviewTime(LocalDateTime.now().plusDays(1));
-				exitsRecord.setStatus(0);
-				userWrongBookMapper.updateById(exitsRecord);
-			}
-		} else if (Integer.valueOf(BusinessConstant.ANSWER_CORRECT).equals(isCorrect)) {
-			if (exitsRecord == null || exitsRecord.getStatus() == 1) {
-				return;
-			}
-			LocalDateTime now = LocalDateTime.now();
-			LocalDateTime nextReviewTime = exitsRecord.getNextReviewTime();
-			if (nextReviewTime != null && now.isBefore(nextReviewTime)) {
-				return;
-			}
-
-			int currentStage = exitsRecord.getReviewStage();
-			int nextStage = currentStage + 1;
-
-			if (nextStage >= 4) {
-				exitsRecord.setStatus(1);
-				exitsRecord.setReviewStage(nextStage);
-			} else {
-				exitsRecord.setReviewStage(nextStage);
-				if (nextStage == 2) {
-					exitsRecord.setNextReviewTime(now.plusDays(3));
-				} else if (nextStage == 3) {
-					exitsRecord.setNextReviewTime(now.plusDays(7));
-				}
-			}
-			userWrongBookMapper.updateById(exitsRecord);
+			saveFirstStageRecord(userId, questionId, record, now);
+		} else if (Integer.valueOf(BusinessConstant.ANSWER_CORRECT).equals(isCorrect)
+				&& WrongBookReviewPolicy.advanceAfterCorrect(record, now)) {
+			userWrongBookMapper.updateById(record);
 		}
 	}
 
-	private void resetWrongBookToFirstStage(Long userId, Long questionId) {
+	private List<UserWrongBook> listActiveWrongBooks(Long userId) {
+		QueryWrapper<UserWrongBook> queryWrapper = new QueryWrapper<>();
+		queryWrapper.eq("user_id", userId);
+		queryWrapper.eq("status", ACTIVE_STATUS);
+		queryWrapper.orderByAsc("next_review_time");
+		return userWrongBookMapper.selectList(queryWrapper);
+	}
+
+	private Map<Long, Question> getQuestionMap(List<UserWrongBook> wrongBooks) {
+		List<Long> questionIds = wrongBooks.stream()
+				.map(UserWrongBook::getQuestionId)
+				.distinct()
+				.toList();
+		if (questionIds.isEmpty()) {
+			return Map.of();
+		}
+		return questionMapper.selectBatchIds(questionIds).stream()
+				.collect(Collectors.toMap(Question::getId, question -> question));
+	}
+
+	private UserWrongBookVO toWrongBookVO(UserWrongBook wrongBook, Map<Long, Question> questionMap) {
+		Question question = questionMap.get(wrongBook.getQuestionId());
+		return question == null ? null : WrongBookAssembler.toWrongBookVO(wrongBook, question);
+	}
+
+	private UserWrongBook findWrongBook(Long userId, Long questionId) {
 		QueryWrapper<UserWrongBook> queryWrapper = new QueryWrapper<>();
 		queryWrapper.eq("user_id", userId);
 		queryWrapper.eq("question_id", questionId);
-		UserWrongBook record = userWrongBookMapper.selectOne(queryWrapper);
+		return userWrongBookMapper.selectOne(queryWrapper);
+	}
+
+	private void saveFirstStageRecord(Long userId, Long questionId, UserWrongBook record, LocalDateTime now) {
 		if (record == null) {
+			try {
+				userWrongBookMapper.insert(WrongBookReviewPolicy.newFirstStage(userId, questionId, now));
+			} catch (DuplicateKeyException e) {
+				resetWrongBookToFirstStage(userId, questionId, now);
+			}
 			return;
 		}
-		record.setReviewStage(1);
-		record.setNextReviewTime(LocalDateTime.now().plusDays(1));
-		record.setStatus(0);
+		WrongBookReviewPolicy.resetToFirstStage(record, now);
 		userWrongBookMapper.updateById(record);
+	}
+
+	private void resetWrongBookToFirstStage(Long userId, Long questionId, LocalDateTime now) {
+		UserWrongBook record = findWrongBook(userId, questionId);
+		if (record != null) {
+			WrongBookReviewPolicy.resetToFirstStage(record, now);
+			userWrongBookMapper.updateById(record);
+		}
 	}
 }

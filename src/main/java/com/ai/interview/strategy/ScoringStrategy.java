@@ -15,8 +15,6 @@ public interface ScoringStrategy {
     UserSubmit doScore(Question question, UserSubmit userSubmit);
 
     /**
-     * 获取当前策略对应的题目类型
-     *
      * @return 题目类型常量（如 1 代表单选题）
      */
     int getQuestionType();

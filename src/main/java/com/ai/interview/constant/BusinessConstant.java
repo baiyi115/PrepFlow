@@ -23,9 +23,7 @@ public class BusinessConstant {
 
 	public static final int USER_ROLE_ADMIN = 1;
 
-	// 限流业务场景标识
 	public static final String RATE_LIMIT_SUBMIT = "submit";
 
-	// AI 接口限流业务场景标识
 	public static final String RATE_LIMIT_AI = "ai";
 }

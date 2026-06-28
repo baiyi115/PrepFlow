@@ -1,53 +1,64 @@
 package com.ai.interview.service;
 
-import jakarta.annotation.Resource;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.UUID;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 基于内存的滑动窗口限流服务。
+ */
 @Service
 public class RateLimitService {
 
-	private static final DefaultRedisScript<Long> SLIDING_WINDOW_SCRIPT = new DefaultRedisScript<>(
-			"""
-			redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1])
-			local count = redis.call('ZCARD', KEYS[1])
-			if count >= tonumber(ARGV[4]) then
-				redis.call('EXPIRE', KEYS[1], tonumber(ARGV[5]))
-				return 0
-			end
-			redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
-			redis.call('EXPIRE', KEYS[1], tonumber(ARGV[5]))
-			return 1
-			""",
-			Long.class
-	);
+	private static final int MAX_TRACKED_KEYS = 10000;
 
-	@Resource
-	private StringRedisTemplate stringRedisTemplate;
+	private final Map<String, Deque<Long>> requestTimeMap = new ConcurrentHashMap<>();
 
 	public boolean tryAcquire(Long userId, String businessKey, int windowSeconds, int maxRequests) {
 		if (userId == null || businessKey == null || businessKey.isBlank() || windowSeconds <= 0 || maxRequests <= 0) {
 			return false;
 		}
 
-		String key = "rate_limit:" + businessKey + ":" + userId;
 		long currentTime = System.currentTimeMillis();
-		long windowStart = currentTime - windowSeconds * 1000L;
-		String member = currentTime + ":" + UUID.randomUUID();
+		long windowMillis = windowSeconds * 1000L;
+		Deque<Long> requestTimes = requestTimeMap.computeIfAbsent(limitKey(userId, businessKey), key -> new ArrayDeque<>());
 
-		Long allowed = stringRedisTemplate.execute(
-				SLIDING_WINDOW_SCRIPT,
-				Collections.singletonList(key),
-				String.valueOf(windowStart),
-				String.valueOf(currentTime),
-				member,
-				String.valueOf(maxRequests),
-				String.valueOf(windowSeconds)
-		);
-		return Long.valueOf(1L).equals(allowed);
+		synchronized (requestTimes) {
+			removeExpiredRequests(requestTimes, currentTime, windowMillis);
+			if (requestTimes.size() >= maxRequests) {
+				return false;
+			}
+			requestTimes.addLast(currentTime);
+		}
+
+		cleanupExpiredKeys(currentTime, windowMillis);
+		return true;
+	}
+
+	private String limitKey(Long userId, String businessKey) {
+		return "rate_limit:" + businessKey + ":" + userId;
+	}
+
+	private void removeExpiredRequests(Deque<Long> requestTimes, long currentTime, long windowMillis) {
+		while (!requestTimes.isEmpty() && currentTime - requestTimes.peekFirst() >= windowMillis) {
+			requestTimes.removeFirst();
+		}
+	}
+
+	private void cleanupExpiredKeys(long currentTime, long windowMillis) {
+		if (requestTimeMap.size() <= MAX_TRACKED_KEYS) {
+			return;
+		}
+		requestTimeMap.entrySet().removeIf(entry -> isExpiredBucket(entry.getValue(), currentTime, windowMillis));
+	}
+
+	private boolean isExpiredBucket(Deque<Long> requestTimes, long currentTime, long windowMillis) {
+		synchronized (requestTimes) {
+			removeExpiredRequests(requestTimes, currentTime, windowMillis);
+			return requestTimes.isEmpty();
+		}
 	}
 }
