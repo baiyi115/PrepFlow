@@ -14,12 +14,11 @@ import com.ai.interview.strategy.ScoringStrategy;
 import com.ai.interview.vo.SubmitAnswerVO;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import jakarta.annotation.Resource;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
+import java.time.Duration;
 @Service
 public class SubmitService {
 
@@ -30,6 +29,9 @@ public class SubmitService {
 	private UserSubmitMapper userSubmitMapper;
 
 	@Resource
+	private StringRedisTemplate stringRedisTemplate;
+
+	@Resource
 	private RateLimitService rateLimitService;
 
 	@Resource
@@ -37,8 +39,6 @@ public class SubmitService {
 
 	@Resource
 	private WrongBookService wrongBookService;
-
-	private final Map<String, String> idempotentCache = new ConcurrentHashMap<>();
 
 	@Transactional(rollbackFor = Exception.class)
 	public SubmitAnswerVO submitAnswer(SubmitAnswerRequest request) {
@@ -52,10 +52,10 @@ public class SubmitService {
 		checkSubmitRateLimit(userId);
 
 		String idempotentKey = "submit:idempotent:" + userId + ":" + submitToken;
-		if (idempotentCache.putIfAbsent(idempotentKey, "1") != null) {
+		Boolean success = stringRedisTemplate.opsForValue().setIfAbsent(idempotentKey, "1", Duration.ofMinutes(10));
+		if (Boolean.FALSE.equals(success)) {
 			return getDuplicateSubmitResult(userId, request.getQuestionId(), submitToken, question);
 		}
-		clearIdempotentCacheIfNeeded();
 
 		try {
 			UserSubmit userSubmit = scoreSubmit(userId, request, question);
@@ -63,7 +63,7 @@ public class SubmitService {
 			wrongBookService.updateWrongBookStatus(userId, request.getQuestionId(), userSubmit.getIsCorrect());
 			return SubmitAssembler.toSubmitAnswerVO(userSubmit, question);
 		} catch (RuntimeException e) {
-			idempotentCache.remove(idempotentKey);
+			stringRedisTemplate.delete(idempotentKey);
 			throw e;
 		}
 	}
@@ -72,12 +72,6 @@ public class SubmitService {
 		boolean allowed = rateLimitService.tryAcquire(userId, BusinessConstant.RATE_LIMIT_SUBMIT, 60, 5);
 		if (!allowed) {
 			throw new BusinessException(ErrorCode.RATE_LIMIT_ERROR);
-		}
-	}
-
-	private void clearIdempotentCacheIfNeeded() {
-		if (idempotentCache.size() > 10000) {
-			idempotentCache.clear();
 		}
 	}
 
