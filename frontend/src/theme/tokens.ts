@@ -16,6 +16,15 @@ export const lightColors = {
   gray100: '#f5f5f4',
   gray50:  '#fafaf9',
 
+  surface:        '#ffffff',
+  surfaceMuted:   '#fafaf9',
+  focusRing:      '#0a72ef',
+  ringSubtle:     'rgba(28, 25, 23, 0.08)',
+  ringMuted:      'rgba(28, 25, 23, 0.06)',
+  shadowSoft:     'rgba(28, 25, 23, 0.04) 0 2px 2px',
+  shadowCard:     'rgba(28, 25, 23, 0.08) 0 0 0 1px, rgba(28, 25, 23, 0.04) 0 2px 2px, rgba(28, 25, 23, 0.04) 0 8px 8px -8px',
+  shadowElevated: 'rgba(28, 25, 23, 0.10) 0 0 0 1px, rgba(28, 25, 23, 0.08) 0 8px 24px -12px',
+
   success:      '#4d7c0f',
   successBg:    '#ecfccb',
   successHover: '#365314',
@@ -43,6 +52,15 @@ export const darkColors = {
   gray700: '#c6c2bc',
   gray800: '#e3dfda',
   gray900: '#f5f2ed',
+
+  surface:        '#1f1d1b',
+  surfaceMuted:   '#252422',
+  focusRing:      '#3b82f6',
+  ringSubtle:     'rgba(245, 242, 237, 0.10)',
+  ringMuted:      'rgba(245, 242, 237, 0.07)',
+  shadowSoft:     'rgba(0, 0, 0, 0.18) 0 2px 2px',
+  shadowCard:     'rgba(245, 242, 237, 0.10) 0 0 0 1px, rgba(0, 0, 0, 0.22) 0 2px 2px, rgba(0, 0, 0, 0.24) 0 8px 8px -8px',
+  shadowElevated: 'rgba(245, 242, 237, 0.14) 0 0 0 1px, rgba(0, 0, 0, 0.30) 0 12px 28px -14px',
 
   success:      '#65a30d',
   successBg:    '#1a2e05',

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { lazy, Suspense } from 'react';
 import type { UserVO } from '../../types';
 import type { AuthMode } from '../AuthModal';
-import { useColors, useTheme } from '../../context/ThemeContext';
+import { useTheme } from '../../context/themeHooks';
 import { BookOpen, History, BookX, BarChart3, User, Shield, LogOut, LogIn, Sun, Moon } from 'lucide-react';
 
 const AuthModal = lazy(() => import('../AuthModal').then(m => ({ default: m.AuthModal })));
@@ -42,41 +42,21 @@ export function MainLayout({
   onLoginFinish,
   onRegisterFinish,
 }: MainLayoutProps) {
-  const colors = useColors(); const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  const adminActive = selectedMenuKey === 'admin-users' || selectedMenuKey === 'admin-questions';
+
   return (
-    <div style={{ minHeight: '100vh', background: colors.gray50 }}>
-      <header style={{
-        background: theme === 'dark' ? 'rgba(28,25,23,0.85)' : 'rgba(255,255,255,0.48)',
-        backdropFilter: 'blur(24px) saturate(1.4)',
-        WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
-        boxShadow: `inset 0 -1px 0 ${colors.gray200}`,
-        height: 64,
-        padding: '0 48px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 48 }}>
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="app-nav-group">
+          <nav className="app-nav-group" aria-label="主导航">
             {navItems.map(item => {
               const active = selectedMenuKey === item.key;
               return (
                 <button
                   key={item.key}
                   onClick={() => onMenuClick({ key: item.key })}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '10px 20px', borderRadius: 10,
-                    border: 'none', cursor: 'pointer',
-                    background: active ? colors.primary : 'transparent',
-                    color: active ? '#fff' : colors.gray600,
-                    fontSize: 14, fontWeight: active ? 600 : 500,
-                    transition: 'all 0.2s ease',
-                    letterSpacing: '0.01em',
-                  }}
+                  className={`app-nav-button${active ? ' is-active' : ''}`}
                 >
                   <item.icon size={16} />
                   {item.label}
@@ -85,18 +65,10 @@ export function MainLayout({
             })}
             {currentUser?.userRole === 1 && (
               <>
-                <div style={{ width: 1, height: 20, background: colors.gray200, margin: '0 4px' }} />
+                <div className="app-admin-divider" />
                 <button
                   onClick={() => onMenuClick({ key: 'admin-users' })}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '10px 16px', borderRadius: 10,
-                    border: 'none', cursor: 'pointer',
-                    background: selectedMenuKey === 'admin-users' || selectedMenuKey === 'admin-questions' ? colors.primary : 'transparent',
-                    color: selectedMenuKey === 'admin-users' || selectedMenuKey === 'admin-questions' ? '#fff' : colors.gray600,
-                    fontSize: 13, fontWeight: 500,
-                    transition: 'all 0.2s ease',
-                  }}
+                  className={`app-nav-button${adminActive ? ' is-active' : ''}`}
                 >
                   <Shield size={14} />
                   管理
@@ -106,55 +78,39 @@ export function MainLayout({
           </nav>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div className="app-actions">
           <button
             onClick={toggleTheme}
             title={theme === 'light' ? '切换深色模式' : '切换浅色模式'}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: 'transparent', color: colors.gray500,
-            }}
+            aria-label={theme === 'light' ? '切换深色模式' : '切换浅色模式'}
+            className="app-icon-button"
           >
             {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
           </button>
           {currentUser ? (
-            <>
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: currentUser.avatarUrl ? 'transparent' : colors.primary,
-                overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: currentUser.avatarUrl ? `2px solid ${colors.gray200}` : 'none',
-              }}>
+            <div className="app-user">
+              <div className="app-avatar">
                 {currentUser.avatarUrl ? (
-                  <img src={currentUser.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={currentUser.avatarUrl} alt="" />
                 ) : (
-                  <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>
+                  <span className="app-avatar-initial">
                     {(currentUser.nickname || currentUser.username).substring(0, 1).toUpperCase()}
                   </span>
                 )}
               </div>
-              <span style={{ fontSize: 14, fontWeight: 600, color: colors.gray800 }}>{currentUser.nickname}</span>
+              <span className="app-user-name">{currentUser.nickname}</span>
               <button
                 onClick={onLogout}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                  background: 'transparent', color: colors.gray500, fontSize: 13,
-                }}
+                className="app-logout-button"
               >
                 <LogOut size={14} />
                 退出
               </button>
-            </>
+            </div>
           ) : (
             <button
               onClick={() => onAuthModeChange('login')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: colors.primary, color: '#fff', fontSize: 14, fontWeight: 600,
-              }}
+              className="app-auth-button"
             >
               <LogIn size={14} />
               登录
@@ -163,7 +119,7 @@ export function MainLayout({
         </div>
       </header>
 
-      <main style={{ padding: '52px 32px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
+      <main className="app-main">
         {children}
       </main>
 

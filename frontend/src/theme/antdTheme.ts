@@ -17,9 +17,9 @@ export const getAntdTheme = (colors: ColorPalette, isDark: boolean): ThemeConfig
     colorWarningBg: colors.warningBg,
 
     colorBgLayout: colors.gray100,
-    colorBgContainer: colors.gray50,
-    colorBgElevated: isDark ? colors.gray200 : '#fff',
-    colorBorder: colors.gray300,
+    colorBgContainer: colors.surface,
+    colorBgElevated: isDark ? colors.gray200 : colors.surface,
+    colorBorder: colors.gray200,
     colorBorderSecondary: colors.gray200,
 
     colorText: colors.gray900,
@@ -27,6 +27,13 @@ export const getAntdTheme = (colors: ColorPalette, isDark: boolean): ThemeConfig
     colorTextTertiary: colors.gray400,
 
     borderRadius: 8,
+    borderRadiusLG: 10,
+    borderRadiusSM: 6,
+    controlHeight: 36,
+    controlHeightLG: 40,
+    controlHeightSM: 28,
+    boxShadow: colors.shadowCard,
+    boxShadowSecondary: colors.shadowElevated,
   },
   components: {
     Menu: {
@@ -43,11 +50,32 @@ export const getAntdTheme = (colors: ColorPalette, isDark: boolean): ThemeConfig
       headerPadding: '0 24px',
     },
     Card: {
-      paddingLG: 24,
-      borderRadiusLG: 16,
+      paddingLG: 22,
+      borderRadiusLG: 8,
+      boxShadow: colors.shadowCard,
     },
     Button: {
-      primaryShadow: '0 2px 0 rgba(217,119,6,0.15)',
+      borderRadius: 6,
+      primaryShadow: 'none',
+      defaultShadow: `${colors.ringSubtle} 0 0 0 1px`,
+    },
+    Input: {
+      borderRadius: 6,
+    },
+    Select: {
+      borderRadius: 6,
+    },
+    Modal: {
+      borderRadiusLG: 10,
+    },
+    Table: {
+      headerBg: colors.surfaceMuted,
+      headerColor: colors.gray700,
+      rowHoverBg: colors.primaryBg,
+      borderColor: colors.gray200,
+    },
+    Tag: {
+      borderRadiusSM: 999,
     },
   },
 });

@@ -1,37 +1,333 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { ConfigProvider } from 'antd';
 import type { Locale } from 'antd/es/locale';
 import { toast } from './utils/toast';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import type { UserVO, QuestionVO, QuestionDetailVO, SubmitAnswerVO, UserSubmitVO, GroupedWrongBookVO, CategoryStatVO, WeaknessAnalysisVO, UserProfileVO, CalendarItemVO } from './types';
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+import type { GroupedWrongBookVO, UserVO, QuestionVO, QuestionDetailVO, SubmitAnswerVO, UserSubmitVO } from './types';
 import { userApi, questionApi, submitApi } from './api';
 import { getToken, setToken as setLocalToken, removeToken } from './utils/request';
 import { pageStorage } from './utils/pageStorage';
 import { getAntdTheme } from './theme/antdTheme';
-import { useColors, useTheme } from './context/ThemeContext';
+import { useColors, useTheme } from './context/themeHooks';
 import type { AuthMode } from './components/AuthModal';
 import { MainLayout } from './components/layout/MainLayout';
+import { usePageData } from './hooks/usePageData';
 import './App.css';
 
 const QuestionBankList = lazy(() => import('./components/QuestionBankList').then(m => ({ default: m.QuestionBankList })));
-
 const AnalysisDashboard = lazy(() => import('./components/AnalysisDashboard').then(m => ({ default: m.AnalysisDashboard })));
 const HistoryList = lazy(() => import('./components/HistoryList').then(m => ({ default: m.HistoryList })));
 const ProfilePage = lazy(() => import('./components/ProfilePage').then(m => ({ default: m.ProfilePage })));
-const CategoryDetailWrapper = lazy(() => import('./wrappers/CategoryDetailWrapper').then(m => ({ default: m.CategoryDetailWrapper })));
-const CategoryPlayWrapper = lazy(() => import('./wrappers/CategoryPlayWrapper').then(m => ({ default: m.CategoryPlayWrapper })));
-const HistoryPlayWrapper = lazy(() => import('./wrappers/HistoryPlayWrapper').then(m => ({ default: m.HistoryPlayWrapper })));
-const WrongBookWrapper = lazy(() => import('./wrappers/WrongBookWrapper').then(m => ({ default: m.WrongBookWrapper })));
-const WrongPlayWrapper = lazy(() => import('./wrappers/WrongPlayWrapper').then(m => ({ default: m.WrongPlayWrapper })));
+const QuestionBankDetail = lazy(() => import('./components/QuestionBankDetail').then(m => ({ default: m.QuestionBankDetail })));
+const WrongBook = lazy(() => import('./components/WrongBook').then(m => ({ default: m.WrongBook })));
+const QuestionPlay = lazy(() => import('./components/QuestionPlay').then(m => ({ default: m.QuestionPlay })));
+const QuestionReview = lazy(() => import('./components/QuestionReview').then(m => ({ default: m.QuestionReview })));
 const AdminUserList = lazy(() => import('./components/AdminUserList').then(m => ({ default: m.AdminUserList })));
 const AdminQuestionList = lazy(() => import('./components/AdminQuestionList').then(m => ({ default: m.AdminQuestionList })));
+
+interface PracticeCategoryRouteProps {
+  questionList: QuestionVO[];
+  onQuestionLink: (qId: string, categoryName?: string) => void;
+  onStartPracticeCategory: (categoryName: string, sortedQuestionIds: string[]) => void;
+}
+
+function PracticeCategoryRoute({
+  questionList,
+  onQuestionLink,
+  onStartPracticeCategory,
+}: PracticeCategoryRouteProps) {
+  const { category } = useParams<{ category: string }>();
+  const navigate = useNavigate();
+  const categoryName = category || '';
+
+  return (
+    <QuestionBankDetail
+      category={categoryName}
+      questionList={questionList}
+      onGoToDetail={(qId) => onQuestionLink(qId, categoryName)}
+      onStartPracticeCategory={onStartPracticeCategory}
+      onBack={() => navigate('/practice')}
+    />
+  );
+}
+
+interface WrongBookRouteProps {
+  wrongData: GroupedWrongBookVO[];
+  setActivePracticeQueue: (queue: string[]) => void;
+}
+
+function WrongBookRoute({ wrongData, setActivePracticeQueue }: WrongBookRouteProps) {
+  const { category } = useParams<{ category?: string }>();
+  const navigate = useNavigate();
+
+  return (
+    <WrongBook
+      key={category || 'wrong-book'}
+      data={wrongData}
+      initialCategory={category || null}
+      onGoToDetail={(qId, queueIds) => {
+        if (queueIds && queueIds.length > 0) {
+          setActivePracticeQueue([...new Set(queueIds)]);
+        }
+        navigate(`/wrong/play/${qId}${category ? `?from=${category}` : ''}`);
+      }}
+    />
+  );
+}
+
+interface QuestionPlayRouteProps {
+  loadingKey: string | null;
+  question: QuestionDetailVO | null;
+  selectedOption: string;
+  onSelectOption: (opt: string) => void;
+  submitResult: SubmitAnswerVO | null;
+  onSubmit: () => void;
+  getPrevAndNextId: (categoryFromUrl?: string) => { prevId: string | null; nextId: string | null; currentIndex: number; totalCount: number; originalIndex: number };
+  onQuestionLink: (qId: string, categoryName?: string) => void;
+  proceedLoadQuestionDetail: (qId: string, isReadOnly?: boolean) => Promise<void>;
+  checkUnsavedChanges: () => boolean;
+}
+
+function PracticePlayRoute({
+  loadingKey,
+  question,
+  selectedOption,
+  onSelectOption,
+  submitResult,
+  onSubmit,
+  getPrevAndNextId,
+  onQuestionLink,
+  proceedLoadQuestionDetail,
+  checkUnsavedChanges,
+}: QuestionPlayRouteProps) {
+  const { category, questionId } = useParams<{ category?: string; questionId: string }>();
+  const navigate = useNavigate();
+  const loadQuestionRef = useRef(proceedLoadQuestionDetail);
+
+  useEffect(() => {
+    loadQuestionRef.current = proceedLoadQuestionDetail;
+  }, [proceedLoadQuestionDetail]);
+
+  useEffect(() => {
+    if (questionId) {
+      loadQuestionRef.current(questionId, false);
+    }
+  }, [questionId]);
+
+  const { prevId, nextId, currentIndex, totalCount, originalIndex } = getPrevAndNextId(category);
+
+  const handleBack = () => {
+    if (!checkUnsavedChanges()) return;
+    pageStorage.setActiveQuestionId(null);
+    navigate(category ? `/practice/${category}` : '/practice');
+  };
+
+  const showSpinner = loadingKey === 'question' || !question || String(question.id) !== questionId;
+  if (showSpinner) {
+    return (
+      <div className="page-loading-center">
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  return (
+    <QuestionPlay
+      question={question}
+      selectedOption={selectedOption}
+      onSelectOption={onSelectOption}
+      submitResult={submitResult}
+      onSubmit={onSubmit}
+      onBack={handleBack}
+      backText={category ? `返回 ${category} 专题` : '返回题库'}
+      prevQuestionId={prevId}
+      nextQuestionId={nextId}
+      questionIndex={currentIndex}
+      totalQuestions={totalCount}
+      originalIndex={originalIndex}
+      onGoToDetail={(qId) => onQuestionLink(qId, category)}
+    />
+  );
+}
+
+interface HistoryPlayRouteProps {
+  loadingKey: string | null;
+  question: QuestionDetailVO | null;
+  historyData: UserSubmitVO[];
+  setActiveSubmitId: (id: string | null) => void;
+  setActiveHistoryQueue: (queue: string[]) => void;
+  prevSubmitId: string | null;
+  nextSubmitId: string | null;
+  onHistorySubmitNav: (submitId: string) => void;
+  proceedLoadQuestionDetail: (qId: string, isReadOnly?: boolean) => Promise<void>;
+  checkUnsavedChanges: () => boolean;
+}
+
+function HistoryPlayRoute({
+  loadingKey,
+  question,
+  historyData,
+  setActiveSubmitId,
+  setActiveHistoryQueue,
+  prevSubmitId,
+  nextSubmitId,
+  onHistorySubmitNav,
+  proceedLoadQuestionDetail,
+  checkUnsavedChanges,
+}: HistoryPlayRouteProps) {
+  const { questionId } = useParams<{ questionId: string }>();
+  const navigate = useNavigate();
+  const loadQuestionRef = useRef(proceedLoadQuestionDetail);
+
+  useEffect(() => {
+    loadQuestionRef.current = proceedLoadQuestionDetail;
+  }, [proceedLoadQuestionDetail]);
+
+  useEffect(() => {
+    if (questionId) {
+      loadQuestionRef.current(questionId, true);
+    }
+  }, [questionId]);
+
+  useEffect(() => {
+    if (questionId && historyData.length > 0) {
+      const match = historyData.find(item => item.questionId === questionId);
+      if (match) {
+        setActiveSubmitId(match.submitId);
+        setActiveHistoryQueue(historyData.map(item => item.submitId));
+      }
+    }
+  }, [questionId, historyData, setActiveSubmitId, setActiveHistoryQueue]);
+
+  const activeHistoryRecord = historyData.find(item => item.questionId === questionId) || null;
+  const showSpinner = loadingKey === 'question' || !question || String(question.id) !== questionId;
+
+  if (showSpinner) {
+    return (
+      <div className="page-loading-center">
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  return (
+    <QuestionReview
+      question={question}
+      record={activeHistoryRecord}
+      onBack={() => {
+        if (!checkUnsavedChanges()) return;
+        navigate('/history');
+      }}
+      prevSubmitId={prevSubmitId}
+      nextSubmitId={nextSubmitId}
+      onGoToSubmit={onHistorySubmitNav}
+    />
+  );
+}
+
+interface WrongPlayRouteProps {
+  loadingKey: string | null;
+  question: QuestionDetailVO | null;
+  selectedOption: string;
+  onSelectOption: (opt: string) => void;
+  submitResult: SubmitAnswerVO | null;
+  onSubmit: () => void;
+  getPrevAndNextId: (categoryFromUrl?: string) => { prevId: string | null; nextId: string | null; currentIndex: number; totalCount: number; originalIndex: number };
+  proceedLoadQuestionDetail: (qId: string, isReadOnly?: boolean) => Promise<void>;
+  checkUnsavedChanges: () => boolean;
+  wrongData: GroupedWrongBookVO[];
+  setActivePracticeQueue: (queue: string[]) => void;
+}
+
+function WrongPlayRoute({
+  loadingKey,
+  question,
+  selectedOption,
+  onSelectOption,
+  submitResult,
+  onSubmit,
+  getPrevAndNextId,
+  proceedLoadQuestionDetail,
+  checkUnsavedChanges,
+  wrongData,
+  setActivePracticeQueue,
+}: WrongPlayRouteProps) {
+  const { questionId } = useParams<{ questionId: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const fromCategory = new URLSearchParams(location.search).get('from');
+  const loadQuestionRef = useRef(proceedLoadQuestionDetail);
+
+  useEffect(() => {
+    loadQuestionRef.current = proceedLoadQuestionDetail;
+  }, [proceedLoadQuestionDetail]);
+
+  useEffect(() => {
+    if (questionId) {
+      loadQuestionRef.current(questionId, false);
+    }
+  }, [questionId]);
+
+  useEffect(() => {
+    if (questionId && wrongData.length > 0) {
+      let queueMatch: string[] = [];
+      for (const group of wrongData) {
+        const item = group.list.find(q => q.questionId === questionId);
+        if (item) {
+          const now = Date.now();
+          queueMatch = group.list
+            .filter(q => !q.nextReviewTime || now >= new Date(q.nextReviewTime).getTime())
+            .map(q => q.questionId);
+          break;
+        }
+      }
+      if (queueMatch.length > 0) {
+        setActivePracticeQueue([...new Set(queueMatch)]);
+      }
+    }
+  }, [questionId, setActivePracticeQueue, wrongData]);
+
+  const { prevId, nextId, currentIndex, totalCount, originalIndex } = getPrevAndNextId(fromCategory || undefined);
+  const showSpinner = loadingKey === 'question' || !question || String(question.id) !== questionId;
+
+  if (showSpinner) {
+    return (
+      <div className="page-loading-center">
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  return (
+    <QuestionPlay
+      question={question}
+      selectedOption={selectedOption}
+      onSelectOption={onSelectOption}
+      submitResult={submitResult}
+      onSubmit={onSubmit}
+      onBack={() => {
+        if (!checkUnsavedChanges()) return;
+        pageStorage.setActiveQuestionId(null);
+        navigate(fromCategory ? `/wrong/${fromCategory}` : '/wrong');
+      }}
+      backText="返回错题列表"
+      prevQuestionId={prevId}
+      nextQuestionId={nextId}
+      questionIndex={currentIndex}
+      totalQuestions={totalCount}
+      originalIndex={originalIndex}
+      onGoToDetail={(qId) => navigate(`/wrong/play/${qId}${fromCategory ? `?from=${fromCategory}` : ''}`)}
+    />
+  );
+}
 
 function App() {
   const colors = useColors();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const initialPathRef = useRef(location.pathname);
 
   const [currentUser, setCurrentUser] = useState<UserVO | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
@@ -47,17 +343,26 @@ function App() {
   const [submitToken, setSubmitToken] = useState<string>(() => 'token-ts-' + Date.now());
   const [submitResult, setSubmitResult] = useState<SubmitAnswerVO | null>(null);
 
-  const [historyData, setHistoryData] = useState<UserSubmitVO[]>([]);
   const [activeSubmitId, setActiveSubmitId] = useState<string | null>(null);
   const [activeHistoryQueue, setActiveHistoryQueue] = useState<string[]>([]);
-  const [wrongData, setWrongData] = useState<GroupedWrongBookVO[]>([]);
-  const [statData, setStatData] = useState<CategoryStatVO[]>([]);
-  const [analysisData, setAnalysisData] = useState<WeaknessAnalysisVO[]>([]);
-  const [profileData, setProfileData] = useState<UserProfileVO | null>(null);
-  const [calendarData, setCalendarData] = useState<CalendarItemVO[]>([]);
-  const [loadingKey, setLoadingKey] = useState<string | null>(null);
-  const [pageError, setPageError] = useState<string>('');
   const [antdLocale, setAntdLocale] = useState<Locale | null>(null);
+  const {
+    historyData,
+    wrongData,
+    statData,
+    analysisData,
+    profileData,
+    calendarData,
+    loadingKey,
+    pageError,
+    setPageError,
+    setLoadingKey,
+    loadHistoryData,
+    loadWrongData,
+    loadStatAndAnalysisData,
+    loadProfileData,
+    updateProfileUser,
+  } = usePageData(setCurrentUser);
 
   useEffect(() => {
     import('antd/locale/zh_CN').then(m => setAntdLocale(m.default));
@@ -108,7 +413,7 @@ function App() {
     pageStorage.clearPracticeState();
   };
 
-  const loadQuestionList = async () => {
+  const loadQuestionList = useCallback(async () => {
     setLoadingKey('practice');
     setPageError('');
     try {
@@ -121,7 +426,7 @@ function App() {
     } finally {
       setLoadingKey(null);
     }
-  };
+  }, [setLoadingKey, setPageError]);
 
   const checkUnsavedChanges = (): boolean => {
     if (question && selectedOption && !submitResult) {
@@ -134,94 +439,6 @@ function App() {
     pageStorage.setPracticeQueue(activePracticeQueue);
   }, [activePracticeQueue]);
 
-  const loadHistoryData = async (silent = false) => {
-    if (!getToken()) return;
-    if (!silent) {
-      setLoadingKey('history');
-      setPageError('');
-    }
-    try {
-      const res = await submitApi.getHistory();
-      if (res.code === 0) {
-        setHistoryData(res.data);
-      }
-      else if (!silent) setPageError(res.message || '答题历史加载失败');
-    } catch (err: unknown) {
-      console.error(err);
-      if (!silent) setPageError('答题历史加载失败，请稍后重试');
-    } finally {
-      if (!silent) setLoadingKey(null);
-    }
-  };
-
-  const loadWrongData = async (silent = false) => {
-    if (!getToken()) return;
-    if (!silent) {
-      setLoadingKey('wrong');
-      setPageError('');
-    }
-    try {
-      const res = await submitApi.getWrongsGrouped();
-      if (res.code === 0) setWrongData(res.data);
-      else if (!silent) setPageError(res.message || '错题本加载失败');
-    } catch (err: unknown) {
-      console.error(err);
-      if (!silent) setPageError('错题本加载失败，请稍后重试');
-    } finally {
-      if (!silent) setLoadingKey(null);
-    }
-  };
-
-  const loadStatAndAnalysisData = async (silent = false) => {
-    if (!getToken()) return;
-    if (!silent) {
-      setLoadingKey('assess');
-      setPageError('');
-    }
-    try {
-      const resStat = await submitApi.getCategoryStat();
-      if (resStat.code === 0) setStatData(resStat.data);
-      else if (!silent) setPageError(resStat.message || '能力评估加载失败');
-      const resAna = await submitApi.getWeaknessAnalysis();
-      if (resAna.code === 0) setAnalysisData(resAna.data);
-      else if (!silent) setPageError(resAna.message || '能力评估加载失败');
-    } catch (err: unknown) {
-      console.error(err);
-      if (!silent) setPageError('能力评估加载失败，请稍后重试');
-    } finally {
-      if (!silent) setLoadingKey(null);
-    }
-  };
-
-  const loadProfileData = async () => {
-    if (!getToken()) return;
-    setLoadingKey('profile');
-    setPageError('');
-    try {
-      const [profileRes, calendarRes] = await Promise.all([
-        userApi.getProfile(),
-        submitApi.getCalendar(30)
-      ]);
-
-      if (profileRes.code === 0) {
-        setProfileData(profileRes.data);
-        setCurrentUser(profileRes.data.userProfile);
-        setStatData(profileRes.data.categoryStats);
-        setAnalysisData(profileRes.data.weaknesses);
-      }
-      if (calendarRes.code === 0) setCalendarData(calendarRes.data);
-
-      if ([profileRes, calendarRes].some(res => res.code !== 0)) {
-        setPageError('个人主页数据加载失败');
-      }
-    } catch (err: unknown) {
-      console.error(err);
-      setPageError('个人主页数据加载失败，请稍后重试');
-    } finally {
-      setLoadingKey(null);
-    }
-  };
-
   useEffect(() => {
     const path = location.pathname;
     if (path.startsWith('/history')) {
@@ -233,15 +450,23 @@ function App() {
     } else if (path.startsWith('/profile')) {
       loadProfileData();
     } else if (path.startsWith('/practice') && questionList.length === 0) {
-      loadQuestionList();
+      queueMicrotask(() => { void loadQuestionList(); });
     }
-  }, [location.pathname]);
+  }, [
+    location.pathname,
+    questionList.length,
+    loadHistoryData,
+    loadWrongData,
+    loadStatAndAnalysisData,
+    loadProfileData,
+    loadQuestionList,
+  ]);
 
   useEffect(() => {
     (async () => {
       const token = getToken();
       const tasks: Promise<void>[] = [];
-      if (location.pathname.startsWith('/practice')) {
+      if (initialPathRef.current.startsWith('/practice')) {
         tasks.push(loadQuestionList());
       }
       if (token) {
@@ -254,7 +479,7 @@ function App() {
       }
       await Promise.all(tasks);
     })();
-  }, []);
+  }, [loadQuestionList]);
 
   useEffect(() => {
     const handleAuthError = () => {
@@ -319,9 +544,14 @@ function App() {
       const res = await userApi.logout();
       if (res.code === 0) {
         handleLocalClear();
+        setQuestion(null);
+        setSelectedOption('');
+        setSubmitResult(null);
+        setActivePracticeQueue([]);
+        setActiveSubmitId(null);
+        setActiveHistoryQueue([]);
         toast.success('已退出，您已成功退出登录');
         navigate('/practice');
-        window.location.reload();
       }
     } catch (err: unknown) {
       console.error(err);
@@ -330,13 +560,12 @@ function App() {
 
   const handleProfileUpdated = (patch: Partial<UserVO>) => {
     setCurrentUser(prev => prev ? { ...prev, ...patch } : prev);
-    setProfileData(prev => prev ? { ...prev, userProfile: { ...prev.userProfile, ...patch } } : prev);
+    updateProfileUser(patch);
   };
 
   const proceedLoadQuestionDetail = async (qId: string, isReadOnly = false) => {
-    if (question && question.id === qId) {
-      // If we are switching modes (readOnly state on pageStorage), or the current question options/details are not complete, allow loading.
-      // But if it's already completely loaded and matches qId, skip to avoid infinite loop.
+    if (question && String(question.id) === String(qId)) {
+      // Same question is already loaded; avoid route-state loops.
       return;
     }
     if (!checkUnsavedChanges()) return;
@@ -387,9 +616,11 @@ function App() {
 
 
         const currentQueueBackup = [...activePracticeQueue];
-        await loadWrongData(true);
-        await loadHistoryData(true);
-        await loadStatAndAnalysisData(true);
+        await Promise.all([
+          loadWrongData(true),
+          loadHistoryData(true),
+          loadStatAndAnalysisData(true),
+        ]);
         setActivePracticeQueue(currentQueueBackup);
       }
     } catch (err: unknown) {
@@ -465,9 +696,8 @@ function App() {
     const record = historyData.find(item => item.submitId === submitId);
     if (!record) return;
 
-    // Check if question details need to be loaded (if navigating to a different question)
     if (question && question.id !== record.questionId) {
-      setQuestion(null); // Clear first to allow the wrapper's useEffect to reload
+      setQuestion(null);
     }
 
     handleHistoryReview(record, activeHistoryQueue.length > 0 ? activeHistoryQueue : historyData.map(item => item.submitId));
@@ -547,27 +777,25 @@ function App() {
         onLoginFinish={onLoginFinish}
         onRegisterFinish={onRegisterFinish}
       >
-        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" /></div>}>
+        <Suspense fallback={<div className="element-loading-center"><div className="spinner" /></div>}>
           <Routes>
             <Route path="/" element={<Navigate to="/practice" replace />} />
-            
+
             <Route path="/practice" element={renderPageState(
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                <QuestionBankList 
-                  questionList={questionList}
-                  onSelectCategory={(category) => navigate(`/practice/${category}`)}
-                />
-              </div>
+              <QuestionBankList
+                questionList={questionList}
+                onSelectCategory={(category) => navigate(`/practice/${category}`)}
+              />
             )} />
             <Route path="/practice/:category" element={renderPageState(
-              <CategoryDetailWrapper
+              <PracticeCategoryRoute
                 questionList={questionList}
-                onGoToDetail={handleQuestionLink}
+                onQuestionLink={handleQuestionLink}
                 onStartPracticeCategory={handleStartPracticeCategory}
               />
             )} />
             <Route path="/practice/:category/play/:questionId" element={renderPageState(
-              <CategoryPlayWrapper
+              <PracticePlayRoute
                 loadingKey={loadingKey}
                 question={question}
                 selectedOption={selectedOption}
@@ -575,13 +803,13 @@ function App() {
                 submitResult={submitResult}
                 onSubmit={submitAnswer}
                 getPrevAndNextId={getPrevAndNextId}
-                handleQuestionLink={handleQuestionLink}
+                onQuestionLink={handleQuestionLink}
                 proceedLoadQuestionDetail={proceedLoadQuestionDetail}
                 checkUnsavedChanges={checkUnsavedChanges}
               />
             )} />
             <Route path="/practice/play/:questionId" element={renderPageState(
-              <CategoryPlayWrapper
+              <PracticePlayRoute
                 loadingKey={loadingKey}
                 question={question}
                 selectedOption={selectedOption}
@@ -589,7 +817,7 @@ function App() {
                 submitResult={submitResult}
                 onSubmit={submitAnswer}
                 getPrevAndNextId={getPrevAndNextId}
-                handleQuestionLink={handleQuestionLink}
+                onQuestionLink={handleQuestionLink}
                 proceedLoadQuestionDetail={proceedLoadQuestionDetail}
                 checkUnsavedChanges={checkUnsavedChanges}
               />
@@ -599,7 +827,7 @@ function App() {
               <HistoryList data={historyData} questionList={questionList} onReview={handleHistoryReview} />
             )} />
             <Route path="/history/play/:questionId" element={renderPageState(
-              <HistoryPlayWrapper
+              <HistoryPlayRoute
                 loadingKey={loadingKey}
                 question={question}
                 historyData={historyData}
@@ -607,26 +835,26 @@ function App() {
                 setActiveHistoryQueue={setActiveHistoryQueue}
                 prevSubmitId={prevSubmitId}
                 nextSubmitId={nextSubmitId}
-                handleHistorySubmitNav={handleHistorySubmitNav}
+                onHistorySubmitNav={handleHistorySubmitNav}
                 proceedLoadQuestionDetail={proceedLoadQuestionDetail}
                 checkUnsavedChanges={checkUnsavedChanges}
               />
             )} />
 
             <Route path="/wrong" element={renderPageState(
-              <WrongBookWrapper
+              <WrongBookRoute
                 wrongData={wrongData}
                 setActivePracticeQueue={setActivePracticeQueue}
               />
             )} />
             <Route path="/wrong/:category" element={renderPageState(
-              <WrongBookWrapper
+              <WrongBookRoute
                 wrongData={wrongData}
                 setActivePracticeQueue={setActivePracticeQueue}
               />
             )} />
             <Route path="/wrong/play/:questionId" element={renderPageState(
-              <WrongPlayWrapper
+              <WrongPlayRoute
                 loadingKey={loadingKey}
                 question={question}
                 selectedOption={selectedOption}

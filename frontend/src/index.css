@@ -10,6 +10,18 @@ html, body, #root {
   text-rendering: optimizeLegibility;
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(217, 119, 6, 0.18);
+}
+
+body {
+  overflow-x: hidden;
+}
+
 input, button, select, textarea, .ant-typography, .ant-btn, .ant-menu, .ant-table {
   font-family: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif !important;
 }
@@ -21,27 +33,4 @@ input, button, select, textarea, .ant-typography, .ant-btn, .ant-menu, .ant-tabl
 
 .user-id-text, code, pre {
   font-family: Consolas, Monaco, "Courier New", Courier, monospace !important;
-}
-
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-16px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-.page-container {
-  animation: fadeInUp 0.4s ease-out;
-}
-
-.page-loading-center, .element-loading-center {
-  animation: fadeIn 0.3s ease-out;
 }

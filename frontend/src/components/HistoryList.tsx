@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Table, Button, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { QuestionVO, UserSubmitVO } from '../types';
-import { useColors } from '../context/ThemeContext';
+import { useColors } from '../context/themeHooks';
 
 interface Props {
   data: UserSubmitVO[];
@@ -12,8 +12,8 @@ interface Props {
 
 export const HistoryList: React.FC<Props> = ({ data, questionList, onReview }) => {
   const colors = useColors();
-  const submitIds = data.map(item => item.submitId);
-  const questionTitleMap = new Map(questionList.map(item => [item.id, item.title]));
+  const submitIds = useMemo(() => data.map(item => item.submitId), [data]);
+  const questionTitleMap = useMemo(() => new Map(questionList.map(item => [item.id, item.title])), [questionList]);
 
   const columns: ColumnsType<UserSubmitVO> = [
     {
@@ -50,19 +50,21 @@ export const HistoryList: React.FC<Props> = ({ data, questionList, onReview }) =
   ];
 
   return (
-    <div>
-      <style>{`
-        .history-table table {
-          table-layout: fixed;
-        }
-      `}</style>
-      <h2 style={{ fontSize: 22, fontWeight: 700, color: colors.gray900, margin: '0 0 20px 0' }}>答题历史</h2>
+    <div className="page-stack">
+      <div className="page-header">
+        <div>
+          <h1 className="page-heading">答题历史</h1>
+          <p className="page-description">回看每次提交，定位错误原因和薄弱分类。</p>
+        </div>
+      </div>
+
       {data.length === 0 ? (
-        <div style={{ padding: 80, textAlign: 'center', background: colors.gray100, borderRadius: 12 }}>
-          <div style={{ fontSize: 15, color: colors.gray500 }}>暂无答题记录</div>
+        <div className="empty-state">
+          <div className="empty-state-title">暂无答题记录</div>
+          <div className="empty-state-text">完成题目后，这里会展示提交结果和历史回顾入口。</div>
         </div>
       ) : (
-        <div className="history-table" style={{ background: colors.gray100, borderRadius: 12, overflow: 'hidden' }}>
+        <div className="table-surface history-table">
           <Table
             dataSource={data}
             columns={columns}

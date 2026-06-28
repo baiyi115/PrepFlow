@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Table, Tag, Button, Typography, Input, Select, Badge } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { GroupedWrongBookVO, UserWrongBookVO } from '../types';
 import { renderSortableHeader, renderDifficultyTag, sortByTitleOrDifficulty, defaultSortState, getNextSortState } from '../utils/tableHelpers';
 import type { SortState, SortField } from '../utils/tableHelpers';
-import { useColors, useTheme } from '../context/ThemeContext';
+import { useColors, useTheme } from '../context/themeHooks';
 import { BookCheck, ArrowLeft, RotateCcw } from 'lucide-react';
 
 const { Text } = Typography;
@@ -38,30 +38,40 @@ const darkCategoryColors = [
 ];
 
 export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoToDetail }) => {
-  const colors = useColors(); const { theme } = useTheme();
+  const colors = useColors();
+  const { theme } = useTheme();
   const categoryColors = theme === 'dark' ? darkCategoryColors : lightCategoryColors;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialCategory);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [difficultyFilter, setDifficultyFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState('all');
   const [sortState, setSortState] = useState<SortState>(defaultSortState);
-
-  const selectedGroup = data.find(g => g.category === selectedCategory);
-  const selectedList = selectedGroup ? selectedGroup.list : [];
-
-  const filteredList = selectedList.filter(item => {
-    const matchesSearch = item.title?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDifficulty = difficultyFilter === 'all' ? true : String(item.difficulty) === difficultyFilter;
-    return matchesSearch && matchesDifficulty;
-  });
-
-  const sortedList = sortByTitleOrDifficulty(filteredList, sortState);
   const [nowTime] = useState(() => Date.now());
 
-  const isReviewDue = (record: UserWrongBookVO) => {
+  const selectedList = useMemo(
+    () => data.find(group => group.category === selectedCategory)?.list ?? [],
+    [data, selectedCategory],
+  );
+
+  const isReviewDue = React.useCallback((record: UserWrongBookVO) => {
     if (!record.nextReviewTime) return true;
     return nowTime >= new Date(record.nextReviewTime).getTime();
-  };
-  const currentQueueIds = sortedList.filter(isReviewDue).map(item => item.questionId);
+  }, [nowTime]);
+  const sortedList = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filteredList = selectedList.filter(item => {
+      const matchesSearch = item.title?.toLowerCase().includes(normalizedQuery);
+      const matchesDifficulty = difficultyFilter === 'all' || String(item.difficulty) === difficultyFilter;
+      return matchesSearch && matchesDifficulty;
+    });
+    return sortByTitleOrDifficulty(filteredList, sortState);
+  }, [difficultyFilter, searchQuery, selectedList, sortState]);
+  const currentQueueIds = useMemo(() => sortedList.filter(isReviewDue).map(item => item.questionId), [isReviewDue, sortedList]);
+  const categorySummaries = useMemo(() => data.map((item, idx) => ({
+    ...item,
+    total: item.list.length,
+    activeCount: item.list.filter(isReviewDue).length,
+    palette: categoryColors[idx % categoryColors.length],
+  })), [categoryColors, data, isReviewDue]);
   const toggleSort = (field: SortField) => setSortState(prev => getNextSortState(prev, field));
 
   const columns: ColumnsType<UserWrongBookVO> = [
@@ -104,7 +114,7 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
         return (
           <Badge
             status="default"
-            text={<span style={{ color: colors.gray500 }}>CD中 ({record.nextReviewTime ? new Date(record.nextReviewTime).toLocaleDateString() : ''})</span>}
+            text={<span style={{ color: colors.gray500 }}>冷却中 ({record.nextReviewTime ? new Date(record.nextReviewTime).toLocaleDateString() : ''})</span>}
           />
         );
       }
@@ -120,50 +130,41 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
 
   if (!selectedCategory) {
     return (
-      <div>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: colors.gray900, margin: '0 0 8px 0' }}>错题本复盘</h2>
-        <p style={{ color: colors.gray500, fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
-          按分类归纳回答错误的题目。基于艾宾浩斯记忆遗忘曲线，制定了复盘冷却机制。
-        </p>
+      <div className="page-stack">
+        <div className="page-header">
+          <div>
+            <h1 className="page-heading">错题本复习</h1>
+            <p className="page-description">按分类归纳答错的题目，优先处理到期复习内容。</p>
+          </div>
+        </div>
 
         {data.length === 0 ? (
-          <div style={{ padding: 80, textAlign: 'center', background: colors.gray100, borderRadius: 12 }}>
+          <div className="empty-state">
             <BookCheck size={48} color={colors.success} style={{ marginBottom: 16 }} />
-            <div style={{ fontSize: 16, fontWeight: 600, color: colors.gray800, marginBottom: 8 }}>暂无错题需要复盘</div>
-            <Text style={{ color: colors.gray500 }}>答题正确率达 100%，或尚未提交任何答题记录</Text>
+            <div className="empty-state-title">暂无错题需要复习</div>
+            <Text className="empty-state-text">答题正确率达 100%，或尚未提交任何答题记录。</Text>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-            {data.map((item, idx) => {
-              const total = item.list.length;
-              const activeCount = item.list.filter(isReviewDue).length;
-              const p = categoryColors[idx % categoryColors.length];
+          <div className="tile-grid">
+            {categorySummaries.map(item => {
+              const { total, activeCount, palette } = item;
               return (
                 <div
                   key={item.category}
+                  className="category-tile"
                   onClick={() => handleSelectCategory(item.category)}
-                  style={{
-                    borderRadius: 16, background: p.bg, padding: 24,
-                    cursor: 'pointer', position: 'relative', overflow: 'hidden',
-                    transition: 'transform 0.25s ease, box-shadow 0.25s ease',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  style={{ background: palette.bg }}
                 >
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: p.text, marginBottom: 4 }}>
-                      {item.category}
-                    </div>
-                    <div style={{ fontSize: 13, color: p.text, opacity: 0.7, marginBottom: 12 }}>
-                      共 {total} 题，{activeCount} 题待复习
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Tag color="error" style={{ borderRadius: 6 }}>{total} 题</Tag>
-                      {activeCount > 0 && <Tag color="success" style={{ borderRadius: 6 }}>{activeCount} 待复习</Tag>}
-                    </div>
-                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 4, color: p.accent, fontSize: 13, fontWeight: 600 }}>
-                      <RotateCcw size={14} /> 前往复习
-                    </div>
+                  <div className="category-tile-title" style={{ color: palette.text }}>{item.category}</div>
+                  <div className="category-tile-meta" style={{ color: palette.text }}>
+                    共 {total} 题，{activeCount} 题待复习
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <Tag color="error">{total} 题</Tag>
+                    {activeCount > 0 && <Tag color="success">{activeCount} 待复习</Tag>}
+                  </div>
+                  <div className="category-tile-action" style={{ color: palette.accent }}>
+                    <RotateCcw size={14} /> 前往复习
                   </div>
                 </div>
               );
@@ -175,24 +176,15 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
   }
 
   return (
-    <div>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
-        flexWrap: 'wrap', justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => setSelectedCategory(null)} style={{
-            display: 'flex', alignItems: 'center', gap: 4, padding: '6px 14px',
-            borderRadius: 8, border: `1px solid ${colors.gray200}`, cursor: 'pointer',
-            background: colors.gray100, color: colors.gray600, fontSize: 13,
-          }}>
+    <div className="page-stack">
+      <div className="toolbar-card">
+        <div className="filter-group">
+          <button onClick={() => setSelectedCategory(null)} className="back-chip">
             <ArrowLeft size={14} /> 返回分类
           </button>
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: colors.gray900, margin: 0 }}>
-            {selectedCategory}
-          </h3>
+          <h1 className="page-heading" style={{ fontSize: 18 }}>{selectedCategory}</h1>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="filter-group">
           <Input.Search
             placeholder="搜索错题名称"
             allowClear
@@ -214,7 +206,7 @@ export const WrongBook: React.FC<Props> = ({ data, initialCategory = null, onGoT
         </div>
       </div>
 
-      <div style={{ background: colors.gray100, borderRadius: 12, overflow: 'hidden' }}>
+      <div className="table-surface">
         <Table
           columns={columns}
           dataSource={sortedList}

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { QuestionVO } from '../types';
-import { useColors, useTheme } from '../context/ThemeContext';
+import { useTheme } from '../context/themeHooks';
 import { SearchX, ArrowRight, Search } from 'lucide-react';
 
 interface Props {
@@ -31,96 +31,60 @@ const darkTilePalette = [
 ];
 
 export const QuestionBankList: React.FC<Props> = ({ questionList, onSelectCategory }) => {
-  const colors = useColors(); const { theme } = useTheme();
+  const { theme } = useTheme();
   const tilePalette = theme === 'dark' ? darkTilePalette : lightTilePalette;
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const categoryCounts = questionList.reduce((acc, q) => {
+  const categoryCounts = useMemo(() => questionList.reduce((acc, q) => {
     const cat = q.category || '其它';
     acc[cat] = (acc[cat] || 0) + 1;
     return acc;
-  }, {} as Record<string, number>);
+  }, {} as Record<string, number>), [questionList]);
 
-  const allCategories = Object.keys(categoryCounts);
-  const displayCategories = allCategories.filter(cat =>
+  const displayCategories = useMemo(() => Object.keys(categoryCounts).filter(cat =>
     cat.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ), [categoryCounts, searchQuery]);
 
   return (
-    <div>
-      <div style={{ marginBottom: 40 }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: colors.gray900, letterSpacing: '-0.02em' }}>
-          开始刷题
-        </h1>
-        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <span style={{ fontSize: 15, color: colors.gray500 }}>
-            选择面试方向，逐题攻破
-          </span>
-          <div style={{ position: 'relative', width: 280 }}>
-            <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', marginTop: -7.5, color: colors.gray400, pointerEvents: 'none' }} />
-            <input
-              placeholder="搜索题库..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%', height: 36, padding: '0 12px 0 34px', borderRadius: 8,
-                border: `1px solid ${colors.gray300}`, outline: 'none', fontSize: 14,
-                background: colors.gray100, color: colors.gray800,
-                transition: 'border-color 0.2s',
-              }}
-              onFocus={e => { e.target.style.borderColor = colors.primary; }}
-              onBlur={e => { e.target.style.borderColor = colors.gray300; }}
-            />
-          </div>
+    <div className="page-stack">
+      <div className="page-header">
+        <div>
+          <h1 className="page-heading">开始刷题</h1>
+          <p className="page-description">选择面试方向，按分类逐题攻破。</p>
+        </div>
+        <div className="search-box">
+          <Search size={15} className="search-box-icon" />
+          <input
+            className="search-input"
+            placeholder="搜索题库..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </div>
 
       {displayCategories.length === 0 ? (
-        <div style={{
-          textAlign: 'center', padding: '80px 20px', borderRadius: 16,
-          background: colors.gray100,
-        }}>
-          <SearchX size={40} color={colors.gray400} style={{ marginBottom: 16 }} />
-          <div style={{ fontSize: 16, fontWeight: 600, color: colors.gray700, marginBottom: 8 }}>暂无匹配的题库分类</div>
-          <span style={{ color: colors.gray500 }}>试试修改搜索关键词，或浏览全部题库</span>
+        <div className="empty-state">
+          <SearchX size={40} style={{ marginBottom: 16, opacity: 0.48 }} />
+          <div className="empty-state-title">暂无匹配的题库分类</div>
+          <div className="empty-state-text">尝试修改搜索关键词，或浏览全部题库。</div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+        <div className="tile-grid">
           {displayCategories.map((cat, idx) => {
-            const p = tilePalette[idx % tilePalette.length];
+            const palette = tilePalette[idx % tilePalette.length];
             const count = categoryCounts[cat];
             return (
               <div
                 key={cat}
+                className="category-tile"
                 onClick={() => onSelectCategory(cat)}
-                style={{
-                  borderRadius: 16,
-                  background: `${p.bg}`,
-                  padding: 24,
-                  cursor: 'pointer',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  transition: 'transform 0.25s ease, box-shadow 0.25s ease',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-6px)';
-                  e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.1)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+                style={{ background: palette.bg }}
               >
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: p.text, marginBottom: 4 }}>
-                    {cat}
-                  </div>
-                  <div style={{ fontSize: 13, color: p.text, opacity: 0.7 }}>
-                    {count} 道题
-                  </div>
-                  <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 4, color: p.accent, fontSize: 13, fontWeight: 600 }}>
-                    开始刷题 <ArrowRight size={14} />
-                  </div>
+                <div className="category-tile-title" style={{ color: palette.text }}>{cat}</div>
+                <div className="category-tile-meta" style={{ color: palette.text }}>{count} 道题</div>
+                <div className="category-tile-action" style={{ color: palette.accent }}>
+                  开始刷题<ArrowRight size={14} />
                 </div>
               </div>
             );

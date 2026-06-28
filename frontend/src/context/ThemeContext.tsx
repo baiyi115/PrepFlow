@@ -1,21 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { lightColors, darkColors } from '../theme/tokens';
-import type { ColorPalette } from '../theme/tokens';
-
-type Theme = 'light' | 'dark';
-
-interface ThemeCtx {
-  theme: Theme;
-  toggleTheme: () => void;
-  colors: ColorPalette;
-}
-
-const ThemeContext = createContext<ThemeCtx>({
-  theme: 'light',
-  toggleTheme: () => {},
-  colors: lightColors,
-});
+import { darkColors, lightColors } from '../theme/tokens';
+import { ThemeContext } from './themeHooks';
+import type { Theme } from './themeHooks';
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -37,10 +24,4 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </ThemeContext.Provider>
   );
-};
-
-export const useColors = () => useContext(ThemeContext).colors;
-export const useTheme = () => {
-  const { theme, toggleTheme } = useContext(ThemeContext);
-  return { theme, toggleTheme };
 };
